@@ -81,7 +81,15 @@ impl MyWindow {
                 }
             );
 
-        /*main_view.items().add(
+        let new_self = Self { wnd, labels, buttons, main_view };
+        new_self.set_btn_events();
+        new_self.set_window_ready();    // Functions such as `text()` or `items()` will fail if the window hasn't spawned yet (done in run_main), so modify them in the window ready event
+        new_self
+    }
+
+    fn fill_main_view(main_view: &gui::ListView<String>) {
+        // TODO: List all .zip files in <app data>/mods directory
+        main_view.items().add(
             &[
                 "Example",
                 "Jamesthe1",
@@ -89,23 +97,29 @@ impl MyWindow {
             ],
             None,
             String::from("example-file-name.zip")
-        );*/
-
-        let new_self = Self { wnd, labels, buttons, main_view };
-        //new_self.set_events();
-        new_self
+        );
     }
 
-    fn set_events(&self) {
-        //let main_view = self.main_view.clone(); // Shallow copy, retains the underlying pointer
-        // TODO: Add event to refresh button that refreshes the list, execute function on first launch
-        match self.buttons.iter().find(|&btn| btn.text() == "&Patch") {
-            None => panic!("No patch button!"),
-            Some(btn) => btn.on().bn_clicked(move || {
-                //MyWindow::get_selected_data(&main_view);
-                Ok(())
-            }),
-        }
+    fn set_btn_events(&self) {
+        let self_clone = self.clone();  // Shallow copy, retains the underlying pointer
+        self.buttons[0].on().bn_clicked(move || {
+            MyWindow::fill_main_view(&self_clone.main_view);
+            Ok(())
+        });
+
+        let self_clone = self.clone();  // Re-definition because the original clone was moved away
+        self.buttons[1].on().bn_clicked(move || {
+            MyWindow::get_selected_data(&self_clone.main_view);
+            Ok(())
+        });
+    }
+
+    fn set_window_ready (&self) {
+        let self_clone = self.clone();
+        self.wnd.on().wm_create(move |_| {
+            MyWindow::fill_main_view(&self_clone.main_view);
+            Ok(0)
+        });
     }
 
     fn get_selected_data(main_view: &gui::ListView<String>) {
