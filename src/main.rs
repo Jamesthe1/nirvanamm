@@ -1,7 +1,11 @@
 //#![windows_subsystem = "windows"]   // Flag to not make the console appear
 
+use std::{fs, io::Read, path::PathBuf};
+use serde::Deserialize;
+
 // Prelude automatically imports necessary traits
 use winsafe::{co::{BS, SS}, gui, prelude::*};
+use directories::ProjectDirs;
 
 fn main() {
     let mywin = MyWindow::new();
@@ -10,19 +14,33 @@ fn main() {
     }
 }
 
+#[derive(Deserialize, Default)]
+struct ModMetaData {
+    name: String,
+    author: String,
+    version: String
+}
+
+#[derive(Deserialize, Default)]
+struct ModData {
+    metadata: ModMetaData
+}
+
 #[derive(Clone)]
 pub struct MyWindow {
     wnd:        gui::WindowMain,
     labels:     Vec<gui::Label>,
     buttons:    Vec<gui::Button>,
-    main_view:  gui::ListView<String>,  // Each item will contain the filename associated
+    main_view:  gui::ListView<PathBuf>, // Each item will contain the filename associated
 }
 
 impl MyWindow {
+    const APPNAME: &str = "NirvanaMM";
+
     pub fn new() -> Self {
         let wnd = gui::WindowMain::new(
             gui::WindowMainOpts {
-                title: String::from("NirvanaMM Control Panel"),
+                title: format!("{} Control Panel", Self::APPNAME),
                 size: (1024, 768),
                 ..Default::default()    // Makes the rest of the fields default
             }
@@ -32,7 +50,7 @@ impl MyWindow {
             gui::Label::new(
                 &wnd,
                 gui::LabelOpts {
-                    text: String::from("NirvanaMM"),
+                    text: String::from(Self::APPNAME),
                     position: (20, 20),
                     size: (984, 20),
                     label_style: SS::CENTER,
@@ -66,7 +84,7 @@ impl MyWindow {
             )
         };
 
-        let main_view: gui::ListView<String> =
+        let main_view: gui::ListView<PathBuf> =
             gui::ListView::new(
                 &wnd,
                 gui::ListViewOpts {
@@ -87,17 +105,125 @@ impl MyWindow {
         new_self
     }
 
-    fn fill_main_view(main_view: &gui::ListView<String>) {
-        // TODO: List all .zip files in <app data>/mods directory
-        main_view.items().add(
-            &[
-                "Example",
-                "Jamesthe1",
-                "v1.0.0"
-            ],
-            None,
-            String::from("example-file-name.zip")
-        );
+    fn get_all_filepaths() -> Vec<PathBuf> {
+        let pdirs = ProjectDirs::from(
+            "Jamesthe1",
+            "Jamesthe1",
+            MyWindow::APPNAME
+        ).unwrap();
+
+        let appdata_dir = pdirs.data_dir();
+        if !appdata_dir.exists() {
+            match fs::create_dir_all(appdata_dir) { // appdata_dir is a borrowed Path, so it does not need to be re-borrowed here
+                Err(e) => panic!("Could not create appdata directory: {}", e.to_string()),
+                Ok(_) => ()
+            }
+        }
+        
+        let mods_dir = appdata_dir.join("mods");
+        if !mods_dir.exists() {
+            match fs::create_dir(&mods_dir) {
+                Err(e) => panic!("Could not create mods directory in appdata: {}", e.to_string()),
+                Ok(_) => ()
+            }
+        }
+
+        let mut paths: Vec<PathBuf> = vec![];
+        for entry in fs::read_dir(mods_dir).unwrap() {
+            if entry.is_err() {
+                eprintln!("A directory entry could not be read");
+                continue;
+            }
+            
+            let path = entry.unwrap().path();
+            if !path.is_file() {
+                continue;
+            }
+
+            match path.extension() {
+                Some(ext) if ext == "zip" => paths.push(path),
+                _ => continue
+            }
+        }
+
+        paths
+    }
+
+    fn fill_main_view(main_view: &gui::ListView<PathBuf>) {
+        let items = main_view.items();
+        if items.count() > 0 {
+            items.delete_all();
+        }
+
+        let filepaths = MyWindow::get_all_filepaths();
+        for filepath in filepaths.iter() {
+            let filepath_str = filepath.to_str().unwrap();
+            let file: fs::File;
+            match fs::File::open(filepath) {
+                Ok(f) => file = f,
+                Err(e) => {
+                    eprintln!("Error reading archive at {}: {}", filepath_str, e.to_string());
+                    continue;
+                }
+            };
+
+            let mut archive: zip::ZipArchive<fs::File>;
+            match zip::ZipArchive::new (file) {
+                Ok(z) => archive = z,
+                Err(e) => {
+                    eprintln!("Error parsing archive {}: {}", filepath_str, e.to_string());
+                    continue;
+                }
+            };
+
+            match archive.by_name("mod.toml") {
+                Err(_) => {
+                    eprintln!("{} does not contain a mod.toml file", filepath_str)
+                },
+                Ok(zip_entry) => {
+                    match MyWindow::parse_mod_metadata(&items, zip_entry, filepath.to_owned()) {
+                        Ok(_) => (),
+                        Err(e_msg) => {
+                            eprintln!("Failed to parse mod file in {}: {}", filepath_str, e_msg);
+                            continue;
+                        }
+                    }
+                }
+            };
+        }
+    }
+
+    fn parse_mod_metadata(view_items: &gui::spec::ListViewItems<'_, PathBuf>, mut mod_file: zip::read::ZipFile, filepath: PathBuf) -> Result<(), String> {
+        let mut contents = String::new();
+        match mod_file.read_to_string(&mut contents) {
+            Ok(_) => {
+                match toml::from_str::<ModData>(&contents) {
+                    Ok(md) => {
+                        view_items.add(
+                            &[
+                                md.metadata.name,
+                                md.metadata.author,
+                                md.metadata.version
+                            ],
+                            None,
+                            filepath
+                        );
+                        Ok(())
+                    },
+                    Err(e) => Err(e.to_string())
+                }
+            },
+            Err(e) => Err(e.to_string())
+        }
+    }
+
+    fn get_selected_data(main_view: &gui::ListView<PathBuf>) {
+        for it in main_view.items().iter_selected() {
+            match it.data() {
+                Some(filepath) => println!("Filepath of mod is {}", filepath.borrow().to_str().unwrap()),
+                None => (),
+            };
+        }
     }
 
     fn set_btn_events(&self) {
@@ -120,14 +246,5 @@ impl MyWindow {
             MyWindow::fill_main_view(&self_clone.main_view);
             Ok(0)
         });
-    }
-
-    fn get_selected_data(main_view: &gui::ListView<String>) {
-        for it in main_view.items().iter_selected() {
-            match it.data() {
-                Some(filepath) => println!("Filepath of mod is {}", filepath.borrow()),
-                None => (),
-            };
-        }
     }
 }
