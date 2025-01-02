@@ -90,7 +90,7 @@ impl MyWindow {
                         (String::from("GUID"), 200),
                         (String::from("Version"), 100),
                         (String::from("Author"), 150),
-                        (String::from("Depends"), 200)
+                        (String::from("Depends on"), 200)
                     },
                     ..Default::default()
                 }
@@ -164,7 +164,7 @@ impl MyWindow {
                 Err(e_msg) => eprintln!("{}", e_msg),
                 Ok(mf) => {
                     let meta = mf.data.metadata.clone();
-                    let depends = meta.depends.unwrap_or_default();
+                    let depends = meta.depends.unwrap_or_default().join(", ");
                     items.add(
                         &[
                             meta.name,

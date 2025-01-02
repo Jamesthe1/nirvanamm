@@ -5,10 +5,10 @@ use std::{fs, io::Read, path::PathBuf};
 #[derive(Deserialize, Default, Clone)]
 pub struct ModMetaData {
     pub name: String,
-    pub guid: String,           // Useful to have a display name (for end users) and a GUID (for mod developers)
+    pub guid: String,                   // Useful to have a display name (for end users) and a GUID (for mod developers)
     pub author: String,
     pub version: String,
-    pub depends: Option<String> // Must be another mod GUID if defined
+    pub depends: Option<Vec<String>>    // Must be another mod GUID if defined
 }
 
 #[derive(Deserialize, Default, Clone)]
