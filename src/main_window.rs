@@ -81,7 +81,7 @@ impl MyWindow {
             );
 
         let new_self = Self { wnd, labels, buttons, main_view };
-        new_self.set_btn_events();
+        new_self.set_btn_events();      // Events can only be set before `run_main` is executed
         new_self.set_window_ready();    // Functions such as `text()` or `items()` will fail if the window hasn't spawned yet (done in run_main), so modify them in the window ready event
         new_self
     }
