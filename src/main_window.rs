@@ -4,7 +4,7 @@ use mod_data::*;
 mod config;
 use config::*;
 
-use std::{fs, path::PathBuf};
+use std::{borrow::Borrow, cell::RefCell, fs, path::PathBuf};
 
 // Prelude automatically imports necessary traits
 use winsafe::{co::{BS, SS}, gui, prelude::*};
@@ -16,8 +16,6 @@ pub struct MyWindow {
     pub labels:     Vec<gui::Label>,
     pub buttons:    Vec<gui::Button>,
     pub main_view:  gui::ListView<ModFile>, // Each item will contain the filename associated
-
-    pub config: AppConfig
 }
 
 impl MyWindow {
@@ -96,10 +94,7 @@ impl MyWindow {
                 }
             );
 
-        let cfg_path = Self::get_appdata_dir().join(AppConfig::FILENAME);
-        let config = AppConfig::new(cfg_path);
-
-        let new_self = Self { wnd, labels, buttons, main_view, config };
+        let new_self = Self { wnd, labels, buttons, main_view };
         new_self.set_btn_events();      // Events can only be set before `run_main` is executed
         new_self.set_window_ready();    // Functions such as `text()` or `items()` will fail if the window hasn't spawned yet (done in run_main), so modify them in the window ready event
         new_self
@@ -122,7 +117,12 @@ impl MyWindow {
         appdata_dir.to_path_buf()
     }
 
-    fn get_all_filepaths(appdata_dir: PathBuf) -> Vec<PathBuf> {
+    fn get_appcfg() -> AppConfig {
+        let cfg_path = Self::get_appdata_dir().join(AppConfig::FILENAME);
+        AppConfig::new(cfg_path)
+    }
+
+    fn get_all_mod_paths(appdata_dir: PathBuf) -> Vec<PathBuf> {
         let mods_dir = appdata_dir.join("mods");
         if !mods_dir.exists() {
             match fs::create_dir(&mods_dir) {
@@ -152,19 +152,21 @@ impl MyWindow {
         paths
     }
 
-    fn fill_main_view(main_view: &gui::ListView<ModFile>) {
+    fn fill_main_view(main_view: &gui::ListView<ModFile>, config: &AppConfig) {
         let items = main_view.items();
         if items.count() > 0 {
             items.delete_all();
         }
 
-        let filepaths = Self::get_all_filepaths(Self::get_appdata_dir());
+        let filepaths = Self::get_all_mod_paths(Self::get_appdata_dir());
         for filepath in filepaths.iter() {
             match ModFile::new(filepath.to_owned()) {
                 Err(e_msg) => eprintln!("{}", e_msg),
                 Ok(mf) => {
                     let meta = mf.data.metadata.clone();
+                    let selected = config.data_win.active_mods.contains(&meta.guid);
                     let depends = meta.depends.unwrap_or_default().join(", ");
+
                     items.add(
                         &[
                             meta.name,
@@ -175,7 +177,7 @@ impl MyWindow {
                         ],
                         None,
                         mf
-                    );
+                    ).select(selected);
                 }
             };
         }
@@ -191,8 +193,9 @@ impl MyWindow {
         let appdata_dir = Self::get_appdata_dir();
         for it in main_view.items().iter_selected() {
             match it.data() {
-                Some(ref_mf) => {
-                    let mod_file = ref_mf.borrow();
+                Some(rc_mf) => {
+                    let ref_mod_file: &RefCell<ModFile> = rc_mf.borrow();
+                    let mod_file = ref_mod_file.borrow();
                     active_mods.push(mod_file.data.metadata.guid.to_owned());
                     println!("Pushed {} to active mods", active_mods.last().unwrap())
                 },
@@ -213,14 +216,15 @@ impl MyWindow {
     fn set_btn_events(&self) {
         let self_clone = self.clone();  // Shallow copy, retains the underlying pointer
         self.buttons[0].on().bn_clicked(move || {
-            Self::fill_main_view(&self_clone.main_view);
+            let appcfg = Self::get_appcfg();    // New app config is loaded each time this button is clicked, just to freshen data
+            Self::fill_main_view(&self_clone.main_view, &appcfg);
             Ok(())
         });
 
         let self_clone = self.clone();  // Re-definition because the original clone was moved away
         self.buttons[1].on().bn_clicked(move || {
-            let mut cfg_clone = self_clone.config.clone();
-            Self::use_selected_data(&self_clone.main_view, &mut cfg_clone);
+            let mut appcfg = Self::get_appcfg();
+            Self::use_selected_data(&self_clone.main_view, &mut appcfg);
             Ok(())
         });
     }
@@ -228,7 +232,8 @@ impl MyWindow {
     fn set_window_ready (&self) {
         let self_clone = self.clone();
         self.wnd.on().wm_create(move |_| {
-            MyWindow::fill_main_view(&self_clone.main_view);
+            let appcfg = Self::get_appcfg();
+            MyWindow::fill_main_view(&self_clone.main_view, &appcfg);
             Ok(0)
         });
     }
