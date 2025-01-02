@@ -19,7 +19,9 @@ impl Default for DataWinConfig {
 
 #[derive(Serialize, Deserialize, Default, Clone)]
 pub struct AppConfig {
-    pub data_win: DataWinConfig
+    pub data_win: DataWinConfig,
+    #[serde(skip_serializing, skip_deserializing)]
+    pub filepath: PathBuf
 }
 
 impl AppConfig {
@@ -30,15 +32,16 @@ impl AppConfig {
             Self::load(cfg_path)
         }
         else {
-            let config = AppConfig { ..Default::default() };
-            let _ = config.save(cfg_path);
+            let mut config = AppConfig { ..Default::default() };
+            config.filepath = cfg_path;
+            let _ = config.save();
             config
         }
     }
 
     pub fn load(cfg_path: PathBuf) -> Self {
         let cfg_default = AppConfig { ..Default::default() };
-        match fs::read_to_string(cfg_path) {
+        let mut app_cfg = match fs::read_to_string(&cfg_path) {
             Err(e) => {
                 eprintln!("File read error: {}", e.to_string());
                 cfg_default
@@ -52,14 +55,16 @@ impl AppConfig {
                     Ok(ac) => ac
                 }
             }
-        }
+        };
+        app_cfg.filepath = cfg_path;
+        app_cfg
     }
 
-    pub fn save(&self, cfg_path: PathBuf) -> Result<(), String> {
+    pub fn save(&self) -> Result<(), String> {
         match toml::to_string(self) {
             Err(e) => Err(format!("Serialize error: {}", e.to_string())),
             Ok(c) => {
-                match fs::write(cfg_path, c) {
+                match fs::write(&self.filepath, c) {
                     Err(e) => Err(format!("File write error: {}", e.to_string())),
                     Ok(_) => Ok(())
                 }

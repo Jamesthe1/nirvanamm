@@ -15,7 +15,7 @@ pub struct MyWindow {
     pub wnd:        gui::WindowMain,
     pub labels:     Vec<gui::Label>,
     pub buttons:    Vec<gui::Button>,
-    pub main_view:  gui::ListView<ModFile>, // Each item will contain the filename associated
+    pub main_view:  gui::ListView<ModData>, // Each item will contain the filename associated
 }
 
 impl MyWindow {
@@ -77,7 +77,7 @@ impl MyWindow {
             )
         };
 
-        let main_view: gui::ListView<ModFile> =
+        let main_view: gui::ListView<ModData> =
             gui::ListView::new(
                 &wnd,
                 gui::ListViewOpts {
@@ -152,7 +152,7 @@ impl MyWindow {
         paths
     }
 
-    fn fill_main_view(main_view: &gui::ListView<ModFile>, config: &AppConfig) {
+    fn fill_main_view(main_view: &gui::ListView<ModData>, config: &AppConfig) {
         let items = main_view.items();
         if items.count() > 0 {
             items.delete_all();
@@ -160,10 +160,10 @@ impl MyWindow {
 
         let filepaths = Self::get_all_mod_paths(Self::get_appdata_dir());
         for filepath in filepaths.iter() {
-            match ModFile::new(filepath.to_owned()) {
+            match ModData::new(filepath) {
                 Err(e_msg) => eprintln!("{}", e_msg),
                 Ok(mf) => {
-                    let meta = mf.data.metadata.clone();
+                    let meta = mf.metadata.clone();
                     let selected = config.data_win.active_mods.contains(&meta.guid);
                     let depends = meta.depends.unwrap_or_default().join(", ");
 
@@ -183,7 +183,7 @@ impl MyWindow {
         }
     }
 
-    fn use_selected_data(main_view: &gui::ListView<ModFile>, config: &mut AppConfig) {
+    fn use_selected_data(main_view: &gui::ListView<ModData>, config: &mut AppConfig) {
         let active_mods = &mut config.data_win.active_mods;
         if active_mods.len() > 0 {
             active_mods.clear();
@@ -194,17 +194,16 @@ impl MyWindow {
         for it in main_view.items().iter_selected() {
             match it.data() {
                 Some(rc_mf) => {
-                    let ref_mod_file: &RefCell<ModFile> = rc_mf.borrow();
+                    let ref_mod_file: &RefCell<ModData> = rc_mf.borrow();
                     let mod_file = ref_mod_file.borrow();
-                    active_mods.push(mod_file.data.metadata.guid.to_owned());
+                    active_mods.push(mod_file.metadata.guid.to_owned());
                     println!("Pushed {} to active mods", active_mods.last().unwrap())
                 },
                 None => (),
             };
         }
 
-        let cfg_path = appdata_dir.join(AppConfig::FILENAME);
-        match config.save(cfg_path) {
+        match config.save() {
             Err(e) => eprintln!("Error saving config: {}", e),
             Ok(_) => {
                 // TODO: Patch here

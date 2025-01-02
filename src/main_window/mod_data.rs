@@ -13,7 +13,9 @@ pub struct ModMetaData {
 
 #[derive(Deserialize, Default, Clone)]
 pub struct ModData {
-    pub metadata: ModMetaData
+    pub metadata: ModMetaData,
+    #[serde(skip_serializing, skip_deserializing)]
+    pub filepath: PathBuf
 }
 
 impl ModData {
@@ -27,7 +29,10 @@ impl ModData {
                             Err(_) => Err(format!("{} does not contain a mod.toml file", filepath_str)),
                             Ok(mod_file) => {
                                 match Self::parse_mod_metadata(mod_file) {
-                                    Ok(md) => Ok(md),
+                                    Ok(mut md) => {
+                                        md.filepath = filepath.to_owned();
+                                        Ok(md)
+                                    },
                                     Err(e_msg) => Err(format!("Failed to parse mod file in {}: {}", filepath_str, e_msg))
                                 }
                             }
@@ -50,21 +55,6 @@ impl ModData {
                     Ok(md) => Ok(md)
                 }
             }
-        }
-    }
-}
-
-#[derive(Clone)]
-pub struct ModFile {
-    pub filepath: PathBuf,
-    pub data: ModData
-}
-
-impl ModFile {
-    pub fn new(filepath: PathBuf) -> Result<Self, String> {
-        match ModData::new(&filepath) {
-            Err(e_msg) => Err(e_msg),
-            Ok(data) => Ok(ModFile { filepath, data })
         }
     }
 }
