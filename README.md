@@ -9,3 +9,4 @@
 - Manage palettes and palette packs
 - Display palettes on an example with an OpenGL shader
 - Manage music packs
+- Side-panel that will show all the files that will be implemented (TreeView)
