@@ -73,8 +73,8 @@ impl MyWindow {
                     size: (764, 698),
                     columns: vec! {
                         (String::from("Name"), 300),
-                        (String::from("Author"), 200),
-                        (String::from("Version"), 100)
+                        (String::from("Version"), 100),
+                        (String::from("Author"), 200)
                     },
                     ..Default::default()
                 }
@@ -184,8 +184,8 @@ impl MyWindow {
                         view_items.add(
                             &[
                                 meta.name,
-                                meta.author,
-                                meta.version
+                                meta.version,
+                                meta.author
                             ],
                             None,
                             filepath
