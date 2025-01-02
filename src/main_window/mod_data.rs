@@ -19,9 +19,9 @@ pub struct ModData {
 }
 
 impl ModData {
-    pub fn new(filepath: &PathBuf) -> Result<Self, String> {
+    pub fn new(filepath: PathBuf) -> Result<Self, String> {
         let filepath_str = filepath.to_str().unwrap();
-        match fs::File::open(filepath) {
+        match fs::File::open(&filepath) {
             Ok(file) => {
                 match zip::ZipArchive::new (file) {
                     Ok(mut archive) => {
@@ -30,7 +30,7 @@ impl ModData {
                             Ok(mod_file) => {
                                 match Self::parse_mod_metadata(mod_file) {
                                     Ok(mut md) => {
-                                        md.filepath = filepath.to_owned();
+                                        md.filepath = filepath;
                                         Ok(md)
                                     },
                                     Err(e_msg) => Err(format!("Failed to parse mod file in {}: {}", filepath_str, e_msg))

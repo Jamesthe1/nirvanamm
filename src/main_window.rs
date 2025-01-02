@@ -160,7 +160,8 @@ impl MyWindow {
 
         let filepaths = Self::get_all_mod_paths(Self::get_appdata_dir());
         for filepath in filepaths.iter() {
-            match ModData::new(filepath) {
+            // Making a clone of the filepath so it can exist within ModData
+            match ModData::new(filepath.to_owned()) {
                 Err(e_msg) => eprintln!("{}", e_msg),
                 Ok(mf) => {
                     let meta = mf.metadata.clone();
