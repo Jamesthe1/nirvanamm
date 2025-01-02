@@ -1,0 +1,3 @@
+[submodule "libs/xdelta"]
+	path = libs/xdelta
+	url = git@github.com:marco-calautti/xdelta.git
