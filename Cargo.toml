@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 directories = "5.0.1"
+libloading = "0.8.6"
 serde = { version = "1.0.217", features = ["serde_derive"] }
 toml = "0.8.19"
 winsafe = { version = "0.0.22", features = ["gui"] }
