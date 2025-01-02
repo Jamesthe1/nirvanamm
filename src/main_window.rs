@@ -46,8 +46,8 @@ impl MyWindow {
                 gui::ButtonOpts {
                     text: String::from("&Refresh"),
                     position: (794, 50),
-                    width: 200,
-                    height: 200,
+                    width: 40,
+                    height: 40,
                     button_style: BS::CENTER | BS::PUSHBUTTON,
                     ..Default::default()
                 }
@@ -56,9 +56,9 @@ impl MyWindow {
                 &wnd,
                 gui::ButtonOpts {
                     text: String::from("&Patch"),
-                    position: (794, 728),
+                    position: (794, 708),
                     width: 200,
-                    height: 20,
+                    height: 40,
                     button_style: BS::CENTER | BS::PUSHBUTTON,  // Use ICON flag, set icon somehow
                     ..Default::default()
                 }
