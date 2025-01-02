@@ -1,7 +1,7 @@
 mod mod_data;
-use mod_data::{ModData, ModMetaData};
+use mod_data::*;
 
-use std::{fs, io::Read, path::PathBuf};
+use std::{fs, path::PathBuf};
 
 // Prelude automatically imports necessary traits
 use winsafe::{co::{BS, SS}, gui, prelude::*};
@@ -12,7 +12,7 @@ pub struct MyWindow {
     pub wnd:        gui::WindowMain,
     pub labels:     Vec<gui::Label>,
     pub buttons:    Vec<gui::Button>,
-    pub main_view:  gui::ListView<PathBuf>, // Each item will contain the filename associated
+    pub main_view:  gui::ListView<ModFile>  // Each item will contain the filename associated
 }
 
 impl MyWindow {
@@ -65,16 +65,18 @@ impl MyWindow {
             )
         };
 
-        let main_view: gui::ListView<PathBuf> =
+        let main_view: gui::ListView<ModFile> =
             gui::ListView::new(
                 &wnd,
                 gui::ListViewOpts {
                     position: (20, 50),
                     size: (764, 698),
                     columns: vec! {
-                        (String::from("Name"), 300),
+                        (String::from("Name"), 200),
+                        (String::from("GUID"), 200),
                         (String::from("Version"), 100),
-                        (String::from("Author"), 200)
+                        (String::from("Author"), 150),
+                        (String::from("Depends"), 200)
                     },
                     ..Default::default()
                 }
@@ -130,7 +132,7 @@ impl MyWindow {
         paths
     }
 
-    fn fill_main_view(main_view: &gui::ListView<PathBuf>) {
+    fn fill_main_view(main_view: &gui::ListView<ModFile>) {
         let items = main_view.items();
         if items.count() > 0 {
             items.delete_all();
@@ -138,71 +140,31 @@ impl MyWindow {
 
         let filepaths = MyWindow::get_all_filepaths();
         for filepath in filepaths.iter() {
-            let filepath_str = filepath.to_str().unwrap();
-            let file: fs::File;
-            match fs::File::open(filepath) {
-                Ok(f) => file = f,
-                Err(e) => {
-                    eprintln!("Error reading archive at {}: {}", filepath_str, e.to_string());
-                    continue;
-                }
-            };
-
-            let mut archive: zip::ZipArchive<fs::File>;
-            match zip::ZipArchive::new (file) {
-                Ok(z) => archive = z,
-                Err(e) => {
-                    eprintln!("Error parsing archive {}: {}", filepath_str, e.to_string());
-                    continue;
-                }
-            };
-
-            match archive.by_name("mod.toml") {
-                Err(_) => {
-                    eprintln!("{} does not contain a mod.toml file", filepath_str)
-                },
-                Ok(zip_entry) => {
-                    match MyWindow::parse_mod_metadata(&items, zip_entry, filepath.to_owned()) {
-                        Ok(_) => (),
-                        Err(e_msg) => {
-                            eprintln!("Failed to parse mod file in {}: {}", filepath_str, e_msg);
-                            continue;
-                        }
-                    }
+            match ModFile::new(filepath.to_owned()) {
+                Err(e_msg) => eprintln!("{}", e_msg),
+                Ok(mf) => {
+                    let meta = mf.data.metadata.clone();
+                    let depends = meta.depends.unwrap_or_default();
+                    items.add(
+                        &[
+                            meta.name,
+                            meta.guid,
+                            meta.version,
+                            meta.author,
+                            depends
+                        ],
+                        None,
+                        mf
+                    );
                 }
             };
         }
     }
 
-    fn parse_mod_metadata(view_items: &gui::spec::ListViewItems<'_, PathBuf>, mut mod_file: zip::read::ZipFile, filepath: PathBuf) -> Result<(), String> {
-        let mut contents = String::new();
-        match mod_file.read_to_string(&mut contents) {
-            Ok(_) => {
-                match toml::from_str::<ModData>(&contents) {
-                    Ok(md) => {
-                        let meta = md.metadata;
-                        view_items.add(
-                            &[
-                                meta.name,
-                                meta.version,
-                                meta.author
-                            ],
-                            None,
-                            filepath
-                        );
-                        Ok(())
-                    },
-                    Err(e) => Err(e.to_string())
-                }
-            },
-            Err(e) => Err(e.to_string())
-        }
-    }
-
-    fn get_selected_data(main_view: &gui::ListView<PathBuf>) {
+    fn get_selected_data(main_view: &gui::ListView<ModFile>) {
         for it in main_view.items().iter_selected() {
             match it.data() {
-                Some(filepath) => println!("Filepath of mod is {}", filepath.borrow().to_str().unwrap()),
+                Some(ref_mf) => println!("Filepath of mod is {}", ref_mf.borrow().filepath.to_str().unwrap()),
                 None => (),
             };
         }
