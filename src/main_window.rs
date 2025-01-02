@@ -37,6 +37,15 @@ impl MyWindow {
                     label_style: SS::CENTER,
                     ..Default::default()
                 }
+            ),
+            gui::Label::new(
+                &wnd,
+                gui::LabelOpts {
+                    text: String::from("Click on the mod you wish to apply (shift-click for more than one), then click \"Patch\" (or press Alt-P)"),
+                    position: (20, 50),
+                    size: (984, 20),
+                    ..Default::default()
+                }
             )
         };
 
@@ -45,7 +54,7 @@ impl MyWindow {
                 &wnd,
                 gui::ButtonOpts {
                     text: String::from("&Refresh"),
-                    position: (794, 50),
+                    position: (794, 80),
                     width: 40,
                     height: 40,
                     button_style: BS::CENTER | BS::PUSHBUTTON,
@@ -69,8 +78,8 @@ impl MyWindow {
             gui::ListView::new(
                 &wnd,
                 gui::ListViewOpts {
-                    position: (20, 50),
-                    size: (764, 698),
+                    position: (20, 80),
+                    size: (764, 668),
                     columns: vec! {
                         (String::from("Name"), 200),
                         (String::from("GUID"), 200),
