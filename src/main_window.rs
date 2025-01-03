@@ -123,7 +123,7 @@ impl MyWindow {
     }
 
     fn get_all_mod_paths(appdata_dir: PathBuf) -> Vec<PathBuf> {
-        let mods_dir = appdata_dir.join("mods");
+        let mods_dir = appdata_dir.join(ModData::SUBDIRECTORY);
         if !mods_dir.exists() {
             match fs::create_dir(&mods_dir) {
                 Err(e) => panic!("Could not create mods directory in appdata: {}", e.to_string()),

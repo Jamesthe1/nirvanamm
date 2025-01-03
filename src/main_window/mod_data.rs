@@ -34,6 +34,8 @@ pub struct ModData {
 }
 
 impl ModData {
+    pub const SUBDIRECTORY: &str = "mods";
+
     pub fn new(filepath: PathBuf) -> Result<Self, String> {
         let filepath_str = filepath.to_str().unwrap();
         match Self::open_archive(&filepath) {
