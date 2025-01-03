@@ -168,24 +168,35 @@ impl MyWindow {
                     let selected = config.data_win.active_mods.contains(&meta.guid);
                     let mut depend_str = String::new();
 
+                    let mut hard_mods: Vec<String> = vec![];
+                    let mut soft_mods: Vec<String> = vec![];
+
                     for d in meta.depends.unwrap_or_default().iter() {
-                        if depend_str.len() > 0 {
-                            depend_str.push_str(", ");
-                        }
                         match d {
                             ModDependencyEnum::ImplicitHard(guid) => {
-                                depend_str.push_str(guid);
+                                hard_mods.push(guid.to_owned());
                             }
                             ModDependencyEnum::DependTable(md) => {
                                 let mut guid = md.guid.clone();
                                 if md.soft {
-                                    guid.insert_str(0, "[");
+                                    guid.insert(0, '[');
                                     guid.push(']');
+                                    soft_mods.push(guid);
                                 }
-                                depend_str.push_str(&guid);
+                                else {
+                                    hard_mods.push(guid);
+                                }
                             }
                         }
                     }
+
+                    // Done this way because hard dependencies must go first
+                    let sep = String::from (", ");
+                    depend_str = hard_mods.join(&sep);
+                    if hard_mods.len() > 0 && soft_mods.len() > 0 {
+                        depend_str.push_str(&sep);
+                    }
+                    depend_str.push_str(&soft_mods.join(&sep));
 
                     items.add(
                         &[
