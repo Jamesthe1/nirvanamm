@@ -1,4 +1,5 @@
 use serde::Deserialize;
+use zip::{read::ZipFile, ZipArchive};
 
 use std::{fs, io::Read, path::PathBuf};
 
@@ -35,31 +36,39 @@ pub struct ModData {
 impl ModData {
     pub fn new(filepath: PathBuf) -> Result<Self, String> {
         let filepath_str = filepath.to_str().unwrap();
-        match fs::File::open(&filepath) {
-            Ok(file) => {
-                match zip::ZipArchive::new (file) {
-                    Ok(mut archive) => {
-                        match archive.by_name("mod.toml") {
-                            Err(_) => Err(format!("{} does not contain a mod.toml file", filepath_str)),
-                            Ok(mod_file) => {
-                                match Self::parse_mod_metadata(mod_file) {
-                                    Ok(mut md) => {
-                                        md.filepath = filepath;
-                                        Ok(md)
-                                    },
-                                    Err(e_msg) => Err(format!("Failed to parse mod file in {}: {}", filepath_str, e_msg))
-                                }
-                            }
+        match Self::open_archive(&filepath) {
+            Ok(mut archive) => {
+                match archive.by_name("mod.toml") {
+                    Err(_) => Err(format!("{} does not contain a mod.toml file", filepath_str)),
+                    Ok(mod_file) => {
+                        match Self::parse_mod_metadata(mod_file) {
+                            Ok(mut md) => {
+                                md.filepath = filepath;
+                                Ok(md)
+                            },
+                            Err(e_msg) => Err(format!("Failed to parse mod file in {}: {}", filepath_str, e_msg))
                         }
                     }
-                    Err(e) => Err(format!("Error parsing archive {}: {}", filepath_str, e.to_string()))
                 }
             }
-            Err(e) => Err(format!("Error reading archive at {}: {}", filepath_str, e.to_string()))
+            Err(e) => Err(e)
         }
     }
 
-    fn parse_mod_metadata(mut mod_file: zip::read::ZipFile) -> Result<Self, String> {
+    pub fn open_archive(filepath: &PathBuf) -> Result<ZipArchive<fs::File>, String> {
+        let filepath_str = filepath.to_str().unwrap();
+        match fs::File::open(&filepath) {
+            Err(e) => Err(format!("Error reading archive at {}: {}", filepath_str, e.to_string())),
+            Ok(file) => {
+                match ZipArchive::new(file) {
+                    Err(e) => Err(format!("Error reading archive {}: {}", filepath_str, e.to_string())),
+                    Ok(archive) => Ok(archive)
+                }
+            }
+        }
+    }
+
+    fn parse_mod_metadata(mut mod_file: ZipFile) -> Result<Self, String> {
         let mut contents = String::new();
         match mod_file.read_to_string(&mut contents) {
             Err(e) => Err(e.to_string()),
