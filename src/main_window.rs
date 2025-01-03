@@ -88,7 +88,7 @@ impl MyWindow {
                         (String::from("GUID"), 200),
                         (String::from("Version"), 100),
                         (String::from("Author"), 150),
-                        (String::from("Depends on"), 200)
+                        (String::from("Depends on"), 400)
                     },
                     ..Default::default()
                 }
