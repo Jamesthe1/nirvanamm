@@ -26,6 +26,7 @@ pub struct ModMetaData {
 
 #[derive(Deserialize, Default, Clone)]
 pub struct ModData {
+    pub manifest: i32,
     pub metadata: ModMetaData,
     #[serde(skip_serializing, skip_deserializing)]
     pub filepath: PathBuf
