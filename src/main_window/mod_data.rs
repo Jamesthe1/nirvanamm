@@ -3,12 +3,25 @@ use serde::Deserialize;
 use std::{fs, io::Read, path::PathBuf};
 
 #[derive(Deserialize, Default, Clone)]
+pub struct ModDependency {
+    pub guid: String,
+    pub soft: bool
+}
+
+#[derive(Deserialize, Clone)]
+#[serde(untagged)]  // Lets serde know that this shouldn't look for one of the names here
+pub enum ModDependencyEnum {
+    ImplicitHard(String),
+    DependTable(ModDependency)
+}
+
+#[derive(Deserialize, Default, Clone)]
 pub struct ModMetaData {
     pub name: String,
-    pub guid: String,                   // Useful to have a display name (for end users) and a GUID (for mod developers)
+    pub guid: String,                       // Useful to have a display name (for end users) and a GUID (for mod developers)
     pub author: String,
     pub version: String,
-    pub depends: Option<Vec<String>>    // Must be another mod GUID if defined
+    pub depends: Option<Vec<ModDependencyEnum>> // Must be another mod GUID if defined
 }
 
 #[derive(Deserialize, Default, Clone)]

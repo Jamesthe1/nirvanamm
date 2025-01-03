@@ -166,7 +166,26 @@ impl MyWindow {
                 Ok(mf) => {
                     let meta = mf.metadata.clone();
                     let selected = config.data_win.active_mods.contains(&meta.guid);
-                    let depends = meta.depends.unwrap_or_default().join(", ");
+                    let mut depend_str = String::new();
+
+                    for d in meta.depends.unwrap_or_default().iter() {
+                        if depend_str.len() > 0 {
+                            depend_str.push_str(", ");
+                        }
+                        match d {
+                            ModDependencyEnum::ImplicitHard(guid) => {
+                                depend_str.push_str(guid);
+                            }
+                            ModDependencyEnum::DependTable(md) => {
+                                let mut guid = md.guid.clone();
+                                if md.soft {
+                                    guid.insert_str(0, "[");
+                                    guid.push(']');
+                                }
+                                depend_str.push_str(&guid);
+                            }
+                        }
+                    }
 
                     items.add(
                         &[
@@ -174,7 +193,7 @@ impl MyWindow {
                             meta.guid,
                             meta.version,
                             meta.author,
-                            depends
+                            depend_str
                         ],
                         None,
                         mf
