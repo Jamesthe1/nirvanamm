@@ -25,6 +25,12 @@ pub struct ModMetaData {
     pub depends: Option<Vec<ModDependencyEnum>> // Must be another mod GUID if defined
 }
 
+impl PartialEq for ModMetaData {
+    fn eq(&self, other: &Self) -> bool {
+        self.guid == other.guid
+    }
+}
+
 #[derive(Deserialize, Default, Clone)]
 pub struct ModData {
     pub manifest: i32,
@@ -81,5 +87,27 @@ impl ModData {
                 }
             }
         }
+    }
+
+    pub fn has_dependencies(&self) -> bool {
+        let deps = self.metadata.depends.clone();
+        deps.is_some_and(|d| d.len() > 0)
+    }
+
+    pub fn has_dependency(&self, mod_file: &ModData) -> bool {
+        let deps = self.metadata.depends.clone().unwrap();
+        deps.iter().find(|d| {
+            let guid = match d {
+                ModDependencyEnum::ImplicitHard(guid) => guid,
+                ModDependencyEnum::DependTable(md) => &md.guid
+            };
+            *guid == mod_file.metadata.guid
+        }).is_some()
+    }
+}
+
+impl PartialEq for ModData {
+    fn eq(&self, other: &Self) -> bool {
+        self.metadata == other.metadata
     }
 }
