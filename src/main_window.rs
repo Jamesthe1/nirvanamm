@@ -7,7 +7,7 @@ use config::*;
 use std::{borrow::Borrow, cell::RefCell, fs, path::PathBuf};
 
 // Prelude automatically imports necessary traits
-use winsafe::{co::{BS, SS}, gui, prelude::*};
+use winsafe::{co::{BS, SS, WS}, gui, prelude::*};
 use directories::ProjectDirs;
 
 #[derive(Clone)]
@@ -26,6 +26,7 @@ impl MyWindow {
             gui::WindowMainOpts {
                 title: format!("{} Control Panel", Self::APPNAME),
                 size: (1024, 768),
+                style: WS::CAPTION | WS::SYSMENU | WS::CLIPCHILDREN | WS::BORDER | WS::VISIBLE | WS::SIZEBOX | WS::MINIMIZEBOX | WS::MAXIMIZEBOX,
                 ..Default::default()    // Makes the rest of the fields default
             }
         );
