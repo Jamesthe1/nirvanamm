@@ -235,12 +235,16 @@ impl MyWindow {
             Err(e) => eprintln!("Error saving config: {}", e),
             Ok(_) => {
                 let msg =
-                    if Self::validate_mod_selection(&active_mod_files) {    // TODO: Make validate a Result with all missing dependencies in Err, as well as the names of the unsatisfied mods
-                        Self::apply_mod_files(config, active_mod_files);
-                        "Patch success"
-                    }
-                    else {
-                        "Patch failed: Missing a dependency"
+                    match Self::validate_mod_selection(&active_mod_files) {
+                        Ok(_) => {
+                            Self::apply_mod_files(config, active_mod_files);
+                            String::from("Patch success")
+                        },
+                        Err((deps_unsatisfied, mods_blame)) => {
+                            let deps_str = deps_unsatisfied.join(", ");
+                            let blame_str = mods_blame.join(", ");
+                            format!("Missing dependencies: {}\nRequired by: {}", deps_str, blame_str)
+                        }
                     };
                 println!("{}", msg);
                 // TODO: Find a way to cause a popup to appear
@@ -248,14 +252,17 @@ impl MyWindow {
         }
     }
 
-    fn validate_mod_selection(active_mod_files: &Vec<ModData>) -> bool {
+    fn validate_mod_selection(active_mod_files: &Vec<ModData>) -> Result<(), (Vec<String>, Vec<String>)> {
         let blank_str = String::new();
+        let mut deps_unsatisfied: Vec<String> = vec![];
+        let mut mods_blame: Vec<String> = vec![];
         for mod_file in active_mod_files.iter() {
             if !mod_file.has_dependencies() {
                 continue;
             }
             
             let deps = mod_file.metadata.depends.clone().unwrap();  // Clone because unwrap also consumes
+            let mut failed = false;
             for dep in deps.iter() {
                 let hard_guid = match dep {
                     ModDependencyEnum::ImplicitHard(guid) => guid,
@@ -268,15 +275,25 @@ impl MyWindow {
                         }
                     }
                 };
-                if hard_guid == "" {
+                if *hard_guid == blank_str {
                     continue;
                 }
                 if active_mod_files.iter().position(|md| md.metadata.guid == *hard_guid).is_none() {
-                    return false;
+                    deps_unsatisfied.push(hard_guid.clone());
+                    failed = true;
                 }
             }
+            if failed {
+                mods_blame.push(mod_file.metadata.guid.clone());
+            }
         }
-        true
+
+        if deps_unsatisfied.len() > 0 {
+            Err((deps_unsatisfied, mods_blame))
+        }
+        else {
+            Ok(())
+        }
     }
 
     fn apply_mod_files(config: &AppConfig, active_mod_files: Vec<ModData>) {
