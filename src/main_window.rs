@@ -210,7 +210,7 @@ impl MyWindow {
         }
     }
 
-    fn use_selected_data(main_view: &gui::ListView<ModData>, config: &mut AppConfig) {
+    fn use_selected_data(&self, config: &mut AppConfig) {
         let active_mods = &mut config.data_win.active_mods;
         let mut active_mod_files: Vec<ModData> = vec![];
         if active_mods.len() > 0 {
@@ -219,7 +219,7 @@ impl MyWindow {
 
         // TODO: Copy all data at game_root to "origin.zip" in appdata directory, if it doesn't exist
         let appdata_dir = Self::get_appdata_dir();
-        for it in main_view.items().iter_selected() {
+        for it in self.main_view.items().iter_selected() {
             match it.data() {
                 Some(rc_mf) => {
                     let ref_mod_file: &RefCell<ModData> = rc_mf.borrow();
@@ -234,14 +234,16 @@ impl MyWindow {
         match config.save() {
             Err(e) => eprintln!("Error saving config: {}", e),
             Ok(_) => {
-                if Self::validate_mod_selection(&active_mod_files) {
-                    Self::apply_mod_files(config, active_mod_files);
-                    println!("Patch success");
-                }
-                else {
-                    // TODO: Produce warning popup
-                    eprintln!("Patch failed: Missing a dependency");
-                }
+                let msg =
+                    if Self::validate_mod_selection(&active_mod_files) {    // TODO: Make validate a Result with all missing dependencies in Err, as well as the names of the unsatisfied mods
+                        Self::apply_mod_files(config, active_mod_files);
+                        "Patch success"
+                    }
+                    else {
+                        "Patch failed: Missing a dependency"
+                    };
+                println!("{}", msg);
+                // TODO: Find a way to cause a popup to appear
             }
         }
     }
@@ -343,7 +345,7 @@ impl MyWindow {
         let self_clone = self.clone();  // Re-definition because the original clone was moved away
         self.buttons[1].on().bn_clicked(move || {
             let mut appcfg = Self::get_appcfg();
-            Self::use_selected_data(&self_clone.main_view, &mut appcfg);
+            self_clone.use_selected_data(&mut appcfg);
             Ok(())
         });
     }
@@ -352,7 +354,7 @@ impl MyWindow {
         let self_clone = self.clone();
         self.wnd.on().wm_create(move |_| {
             let appcfg = Self::get_appcfg();
-            MyWindow::fill_main_view(&self_clone.main_view, &appcfg);
+            Self::fill_main_view(&self_clone.main_view, &appcfg);
             Ok(0)
         });
     }
