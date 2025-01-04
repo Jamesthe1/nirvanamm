@@ -7,7 +7,7 @@ use config::*;
 use std::{borrow::Borrow, cell::RefCell, fs, path::PathBuf};
 
 // Prelude automatically imports necessary traits
-use winsafe::{co::{BS, SS, WS}, gui, prelude::*};
+use winsafe::{co::{BS, SS, SW, WS}, gui, prelude::*};
 use directories::ProjectDirs;
 
 #[derive(Clone)]
@@ -16,6 +16,8 @@ pub struct MyWindow {
     pub labels:     Vec<gui::Label>,
     pub buttons:    Vec<gui::Button>,
     pub main_view:  gui::ListView<ModFile>, // Each item will contain the filename associated
+
+    pub popup:      gui::WindowControl
 }
 
 impl MyWindow {
@@ -28,6 +30,16 @@ impl MyWindow {
                 size: (1024, 768),
                 style: WS::CAPTION | WS::SYSMENU | WS::CLIPCHILDREN | WS::BORDER | WS::VISIBLE | WS::SIZEBOX | WS::MINIMIZEBOX | WS::MAXIMIZEBOX,
                 ..Default::default()    // Makes the rest of the fields default
+            }
+        );
+
+        let popup = gui::WindowControl::new(
+            &wnd,
+            gui::WindowControlOpts {
+                position: (212, 334),
+                size: (600, 100),
+                style: WS::CHILD | WS::CLIPSIBLINGS | WS::DLGFRAME,
+                ..Default::default()
             }
         );
 
@@ -48,6 +60,15 @@ impl MyWindow {
                     text: String::from("Click on the mod you wish to apply (shift-click for more than one), then click \"Patch\" (or press Alt-P)"),
                     position: (20, 50),
                     size: (984, 20),
+                    ..Default::default()
+                }
+            ),
+            gui::Label::new(
+                &popup,
+                gui::LabelOpts {
+                    text: String::from("Placeholder"),
+                    position: (10, 10),
+                    size: (580, 40),
                     ..Default::default()
                 }
             )
@@ -75,6 +96,17 @@ impl MyWindow {
                     button_style: BS::CENTER | BS::PUSHBUTTON,  // Use ICON flag, set icon somehow
                     ..Default::default()
                 }
+            ),
+            gui::Button::new(
+                &popup,
+                gui::ButtonOpts {
+                    text: String::from("&Ok"),
+                    position: (530, 60),
+                    width: 60,
+                    height: 30,
+                    button_style: BS::CENTER | BS::PUSHBUTTON,
+                    ..Default::default()
+                }
             )
         };
 
@@ -95,7 +127,7 @@ impl MyWindow {
                 }
             );
 
-        let new_self = Self { wnd, labels, buttons, main_view };
+        let new_self = Self { wnd, labels, buttons, main_view, popup };
         new_self.set_btn_events();      // Events can only be set before `run_main` is executed
         new_self.set_window_ready();    // Functions such as `text()` or `items()` will fail if the window hasn't spawned yet (done in run_main), so modify them in the window ready event
         new_self
@@ -249,7 +281,8 @@ impl MyWindow {
                             format!("Missing dependencies: {}\nRequired by: {}", deps_str, blame_str)
                         }
                     };
-                println!("{}", msg);
+                self.labels[2].set_text(msg.as_str());
+                self.popup.hwnd().ShowWindow(SW::SHOW);
                 // TODO: Find a way to cause a popup to appear
             }
         }
@@ -358,6 +391,12 @@ impl MyWindow {
         self.buttons[1].on().bn_clicked(move || {
             let mut appcfg = Self::get_appcfg();
             self_clone.use_selected_data(&mut appcfg);
+            Ok(())
+        });
+
+        let self_clone = self.clone();
+        self.buttons[2].on().bn_clicked(move || {
+            self_clone.popup.hwnd().ShowWindow(SW::HIDE);
             Ok(())
         });
     }
