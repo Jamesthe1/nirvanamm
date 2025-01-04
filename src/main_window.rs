@@ -283,7 +283,6 @@ impl MyWindow {
                     };
                 self.labels[2].set_text(msg.as_str());
                 self.popup.hwnd().ShowWindow(SW::SHOW);
-                // TODO: Find a way to cause a popup to appear
             }
         }
     }
