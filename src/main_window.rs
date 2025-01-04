@@ -212,11 +212,12 @@ impl MyWindow {
 
     fn use_selected_data(main_view: &gui::ListView<ModData>, config: &mut AppConfig) {
         let active_mods = &mut config.data_win.active_mods;
+        let mut active_mod_files: Vec<ModData> = vec![];
         if active_mods.len() > 0 {
             active_mods.clear();
         }
 
-        // TODO: Copy data.win to appdata directory
+        // TODO: Copy all data at game_root to "origin.zip" in appdata directory, if it doesn't exist
         let appdata_dir = Self::get_appdata_dir();
         for it in main_view.items().iter_selected() {
             match it.data() {
@@ -224,7 +225,7 @@ impl MyWindow {
                     let ref_mod_file: &RefCell<ModData> = rc_mf.borrow();
                     let mod_file = ref_mod_file.borrow();
                     active_mods.push(mod_file.metadata.guid.to_owned());
-                    println!("Pushed {} to active mods", active_mods.last().unwrap())
+                    active_mod_files.push(mod_file.clone());
                 },
                 None => (),
             };
@@ -233,10 +234,102 @@ impl MyWindow {
         match config.save() {
             Err(e) => eprintln!("Error saving config: {}", e),
             Ok(_) => {
-                // TODO: Patch here
-                println!("Patch success");
+                if Self::validate_mod_selection(&active_mod_files) {
+                    Self::apply_mod_files(config, active_mod_files);
+                    println!("Patch success");
+                }
+                else {
+                    // TODO: Produce warning popup
+                    eprintln!("Patch failed: Missing a dependency");
+                }
             }
         }
+    }
+
+    fn validate_mod_selection(active_mod_files: &Vec<ModData>) -> bool {
+        let blank_str = String::new();
+        for mod_file in active_mod_files.iter() {
+            if !mod_file.has_dependencies() {
+                continue;
+            }
+            
+            let deps = mod_file.metadata.depends.clone().unwrap();  // Clone because unwrap also consumes
+            for dep in deps.iter() {
+                let hard_guid = match dep {
+                    ModDependencyEnum::ImplicitHard(guid) => guid,
+                    ModDependencyEnum::DependTable(md) => {
+                        if !md.soft {
+                            &md.guid
+                        }
+                        else {
+                            &blank_str
+                        }
+                    }
+                };
+                if hard_guid == "" {
+                    continue;
+                }
+                if active_mod_files.iter().position(|md| md.metadata.guid == *hard_guid).is_none() {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+
+    fn apply_mod_files(config: &AppConfig, active_mod_files: Vec<ModData>) {
+        // TODO: Purge all files before extracting the origin archive to the game location
+        let mut chain: Vec<&ModData> = vec![];
+        for mod_file in active_mod_files.iter() {
+            // Init
+            if chain.len() == 0 {
+                chain.push(mod_file);
+                continue;
+            }
+
+            // Depended upon by anything in the chain, should go to first hit
+            let chain_pos = chain.iter().position(|m| {
+                if !m.has_dependencies() {
+                    false
+                }
+                else {
+                    m.has_dependency(&mod_file)
+                }
+            });
+            if chain_pos.is_some() {
+                chain.insert(chain_pos.unwrap(), mod_file);
+                continue;
+            }
+            
+            // Depends upon nothing, should be among the first
+            if !mod_file.has_dependencies() {
+                chain.insert(0, mod_file);
+                continue;
+            }
+
+            let dep_pos = chain.iter()
+                .filter(|m| mod_file.has_dependency(m))
+                .map(|m| chain.iter().position(|cm| cm == m).unwrap());
+
+            // None of the dependencies exist, should be among the last as we expect them to come later
+            if dep_pos.clone().count() == 0 {
+                chain.push(mod_file);
+                continue;
+            }
+
+            // Any of our dependencies exist
+            chain.insert(dep_pos.last().unwrap() + 1, mod_file);
+        }
+        println!("Mod order: {}", chain.iter().map(|m| m.metadata.guid.clone()).fold(String::new(), |s, g| {
+            if s.len() == 0 {
+                g
+            }
+            else {
+                format!("{}, {}", s, g)
+            }
+        }));
+        // TODO: Move all files that are not mod.toml or patch.xdelta
+        // TODO: Extract patch.xdelta and run patches here
     }
 
     fn set_btn_events(&self) {
