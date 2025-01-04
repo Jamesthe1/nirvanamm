@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use zip::{read::ZipFile, ZipArchive};
 
-use std::{fs, io::Read, path::PathBuf};
+use std::{fs, io::{Read, Write}, path::PathBuf};
 
 #[derive(Deserialize, Default, Clone)]
 pub struct ModDependency {
@@ -74,6 +74,48 @@ impl ModFile {
                 }
             }
         }
+    }
+
+    pub fn extract_archive(&self, game_root: &PathBuf) -> Result<(), (String, String)> {
+        let guid = self.metadata.guid.clone();
+        match Self::open_archive(&self.filepath) {
+            Err(e) => return Err((guid, e)),
+            Ok(mut archive) => {
+                let entries: Vec<String> = archive.file_names().map(String::from).collect();    // Drops the immutable borrow by making a vector of new strings
+                for entry in entries.iter() {
+                    // TODO: If it's a patch.xdelta, use the xdelta3 library and give it the data within
+                    if entry == "mod.toml" || entry == "patch.xdelta" {
+                        continue;
+                    }
+                    let path = game_root.join(entry);
+                    let dir = path.parent().unwrap();
+                    if !dir.exists() {
+                        let _ = fs::create_dir_all(dir);
+                    }
+
+                    match fs::File::create(&path) {
+                        Err(e) => return Err((guid, format!("Extract output error: {}", e.to_string()))),
+                        Ok(mut out) => {
+                            match archive.by_name(entry.as_str()) {
+                                Err(e) => return Err((guid, format!("Failed to read zip content: {}", e.to_string()))),
+                                Ok(mut zip_file) => {
+                                    // Better to stream with a buffer than to store the entire file in RAM
+                                    let mut buf = [0u8; 8192];
+                                    while let Ok(count) = zip_file.read(&mut buf) {
+                                        // Wish this could more easily be placed in the while loop
+                                        if count == 0 {
+                                            break;
+                                        }
+                                        let _ = out.write(&buf[..count]);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Ok(())
     }
 
     fn parse_mod_metadata(mut mod_file: ZipFile) -> Result<Self, String> {

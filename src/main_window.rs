@@ -272,8 +272,10 @@ impl MyWindow {
                 let msg =
                     match Self::validate_mod_selection(&active_mod_files) {
                         Ok(_) => {
-                            Self::apply_mod_files(config, active_mod_files);
-                            String::from("Patch success")
+                            match Self::apply_mod_files(config, active_mod_files) {
+                                Ok(()) => String::from("Patch success"),
+                                Err((guid, e_msg)) => format!("Failed to apply mod {}\nReason: {}", guid, e_msg)
+                            }
                         },
                         Err((deps_unsatisfied, mods_blame)) => {
                             let deps_str = deps_unsatisfied.join(", ");
@@ -331,7 +333,7 @@ impl MyWindow {
         }
     }
 
-    fn apply_mod_files(config: &AppConfig, active_mod_files: Vec<ModFile>) {
+    fn apply_mod_files(config: &AppConfig, active_mod_files: Vec<ModFile>) -> Result<(), (String, String)> {
         // TODO: Purge all files before extracting the origin archive to the game location
         let mut chain: Vec<&ModFile> = vec![];
         for mod_file in active_mod_files.iter() {
@@ -374,8 +376,15 @@ impl MyWindow {
             // Any of our dependencies exist
             chain.insert(dep_pos.last().unwrap() + 1, mod_file);
         }
-        // TODO: Move all files that are not mod.toml or patch.xdelta
-        // TODO: Extract patch.xdelta and run patches here
+
+        // Now that we're sorted, let's extract the contents
+        for mod_file in chain {
+            if let Err(e) = mod_file.extract_archive(&config.data_win.game_root) {
+                // TODO: Clean up the entire folder and try to extract the origin, if that fails then append "could not reset folder"
+                return Err(e);
+            }
+        }
+        Ok(())
     }
 
     fn set_btn_events(&self) {
