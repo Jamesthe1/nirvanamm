@@ -235,6 +235,8 @@ impl MyWindow {
         match config.save() {
             Err(e) => eprintln!("Error saving config: {}", e),
             Ok(_) => {
+                // TODO: Validate before saving the config
+                // TODO: Check for file conflicts (that aren't mod.toml and patch.xdelta) before validating the dependencies
                 let msg =
                     match Self::validate_mod_selection(&active_mod_files) {
                         Ok(_) => {
@@ -340,14 +342,6 @@ impl MyWindow {
             // Any of our dependencies exist
             chain.insert(dep_pos.last().unwrap() + 1, mod_file);
         }
-        println!("Mod order: {}", chain.iter().map(|m| m.metadata.guid.clone()).fold(String::new(), |s, g| {
-            if s.len() == 0 {
-                g
-            }
-            else {
-                format!("{}, {}", s, g)
-            }
-        }));
         // TODO: Move all files that are not mod.toml or patch.xdelta
         // TODO: Extract patch.xdelta and run patches here
     }
