@@ -15,7 +15,7 @@ pub struct MyWindow {
     pub wnd:        gui::WindowMain,
     pub labels:     Vec<gui::Label>,
     pub buttons:    Vec<gui::Button>,
-    pub main_view:  gui::ListView<ModData>, // Each item will contain the filename associated
+    pub main_view:  gui::ListView<ModFile>, // Each item will contain the filename associated
 }
 
 impl MyWindow {
@@ -77,7 +77,7 @@ impl MyWindow {
             )
         };
 
-        let main_view: gui::ListView<ModData> =
+        let main_view: gui::ListView<ModFile> =
             gui::ListView::new(
                 &wnd,
                 gui::ListViewOpts {
@@ -123,7 +123,7 @@ impl MyWindow {
     }
 
     fn get_all_mod_paths(appdata_dir: PathBuf) -> Vec<PathBuf> {
-        let mods_dir = appdata_dir.join(ModData::SUBDIRECTORY);
+        let mods_dir = appdata_dir.join(ModFile::SUBDIRECTORY);
         if !mods_dir.exists() {
             match fs::create_dir(&mods_dir) {
                 Err(e) => panic!("Could not create mods directory in appdata: {}", e.to_string()),
@@ -152,7 +152,7 @@ impl MyWindow {
         paths
     }
 
-    fn fill_main_view(main_view: &gui::ListView<ModData>, config: &AppConfig) {
+    fn fill_main_view(main_view: &gui::ListView<ModFile>, config: &AppConfig) {
         let items = main_view.items();
         if items.count() > 0 {
             items.delete_all();
@@ -161,7 +161,7 @@ impl MyWindow {
         let filepaths = Self::get_all_mod_paths(Self::get_appdata_dir());
         for filepath in filepaths.iter() {
             // Making a clone of the filepath so it can exist within ModData
-            match ModData::new(filepath.to_owned()) {
+            match ModFile::new(filepath.to_owned()) {
                 Err(e_msg) => eprintln!("{}", e_msg),
                 Ok(mf) => {
                     let meta = mf.metadata.clone();
@@ -212,7 +212,7 @@ impl MyWindow {
 
     fn use_selected_data(&self, config: &mut AppConfig) {
         let active_mods = &mut config.data_win.active_mods;
-        let mut active_mod_files: Vec<ModData> = vec![];
+        let mut active_mod_files: Vec<ModFile> = vec![];
         if active_mods.len() > 0 {
             active_mods.clear();
         }
@@ -222,7 +222,7 @@ impl MyWindow {
         for it in self.main_view.items().iter_selected() {
             match it.data() {
                 Some(rc_mf) => {
-                    let ref_mod_file: &RefCell<ModData> = rc_mf.borrow();
+                    let ref_mod_file: &RefCell<ModFile> = rc_mf.borrow();
                     let mod_file = ref_mod_file.borrow();
                     active_mods.push(mod_file.metadata.guid.to_owned());
                     active_mod_files.push(mod_file.clone());
@@ -252,7 +252,7 @@ impl MyWindow {
         }
     }
 
-    fn validate_mod_selection(active_mod_files: &Vec<ModData>) -> Result<(), (Vec<String>, Vec<String>)> {
+    fn validate_mod_selection(active_mod_files: &Vec<ModFile>) -> Result<(), (Vec<String>, Vec<String>)> {
         let blank_str = String::new();
         let mut deps_unsatisfied: Vec<String> = vec![];
         let mut mods_blame: Vec<String> = vec![];
@@ -296,9 +296,9 @@ impl MyWindow {
         }
     }
 
-    fn apply_mod_files(config: &AppConfig, active_mod_files: Vec<ModData>) {
+    fn apply_mod_files(config: &AppConfig, active_mod_files: Vec<ModFile>) {
         // TODO: Purge all files before extracting the origin archive to the game location
-        let mut chain: Vec<&ModData> = vec![];
+        let mut chain: Vec<&ModFile> = vec![];
         for mod_file in active_mod_files.iter() {
             // Init
             if chain.len() == 0 {

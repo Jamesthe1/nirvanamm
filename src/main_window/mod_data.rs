@@ -32,14 +32,14 @@ impl PartialEq for ModMetaData {
 }
 
 #[derive(Deserialize, Default, Clone)]
-pub struct ModData {
+pub struct ModFile {
     pub manifest: i32,
     pub metadata: ModMetaData,
     #[serde(skip_serializing, skip_deserializing)]
     pub filepath: PathBuf
 }
 
-impl ModData {
+impl ModFile {
     pub const SUBDIRECTORY: &str = "mods";
 
     pub fn new(filepath: PathBuf) -> Result<Self, String> {
@@ -94,7 +94,7 @@ impl ModData {
         deps.is_some_and(|d| d.len() > 0)
     }
 
-    pub fn has_dependency(&self, mod_file: &ModData) -> bool {
+    pub fn has_dependency(&self, mod_file: &Self) -> bool {
         let deps = self.metadata.depends.clone().unwrap();
         deps.iter().find(|d| {
             let guid = match d {
@@ -106,7 +106,7 @@ impl ModData {
     }
 }
 
-impl PartialEq for ModData {
+impl PartialEq for ModFile {
     fn eq(&self, other: &Self) -> bool {
         self.metadata == other.metadata
     }
