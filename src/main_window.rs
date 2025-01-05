@@ -4,7 +4,12 @@ use mod_data::*;
 mod config;
 use config::*;
 
-use std::{borrow::Borrow, cell::RefCell, fs, path::PathBuf};
+use crate::utils::stream::*;
+
+use walkdir::WalkDir;
+use zip::{write::SimpleFileOptions, ZipWriter};
+
+use std::{borrow::Borrow, cell::RefCell, fs::{self, File}, io::{Read, Write}, path::PathBuf};
 
 // Prelude automatically imports necessary traits
 use winsafe::{co::{BS, SS, SW, WS}, gui, prelude::*};
@@ -243,6 +248,36 @@ impl MyWindow {
         }
     }
 
+    fn prepare_origin(&self, origin_path: PathBuf, game_root: PathBuf) -> Result<(), String> {
+        let foptions = SimpleFileOptions::default();
+
+        match fs::File::create(origin_path) {
+            Err(e) => Err(e.to_string()),
+            Ok(zf) => {
+                let mut zip_file = ZipWriter::new(zf);
+                for entry_rslt in WalkDir::new(&game_root) {
+                    // If unwrapped without a definition to hold it, it would be dropped and the compiler recognizes that. So we must do it this way.
+                    if let Ok(entry) = entry_rslt {
+                        let path = entry.path();
+                        let rel_path = path.strip_prefix(&game_root).unwrap();
+
+                        if path.is_dir() {
+                            let _ = zip_file.add_directory_from_path(rel_path, foptions);
+                        }
+                        else if path.is_file() {
+                            let _ = zip_file.start_file_from_path(rel_path, foptions);
+                            if let Ok(mut f) = File::open(path) {
+                                stream_from_to::<32768>(|buf| f.read(buf), |buf| zip_file.write(buf));
+                            }
+                        }
+                    }
+                }
+                Ok(())
+            }
+        }
+        // TODO: Add button called "Reset" that clears the game root, extracts the origin's contents, and purges the origin file and the active mods vector.
+    }
+
     fn use_selected_data(&self, config: &mut AppConfig) {
         let active_mods = &mut config.data_win.active_mods;
         let mut active_mod_files: Vec<ModFile> = vec![];
@@ -250,8 +285,10 @@ impl MyWindow {
             active_mods.clear();
         }
 
-        // TODO: Copy all data at game_root to "origin.zip" in appdata directory, if it doesn't exist
-        let appdata_dir = Self::get_appdata_dir();
+        let origin_path = Self::get_appdata_dir().join("origin.zip");
+        if !origin_path.exists() {
+            let _ = self.prepare_origin(origin_path, config.data_win.game_root.clone());
+        }
         for it in self.main_view.items().iter_selected() {
             match it.data() {
                 Some(rc_mf) => {
