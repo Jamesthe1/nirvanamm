@@ -83,7 +83,7 @@ impl ModFile {
             Ok(mut archive) => {
                 let entries: Vec<String> = archive.file_names().map(String::from).collect();    // Drops the immutable borrow by making a vector of new strings
                 for entry in entries.iter() {
-                    // TODO: If it's a patch.xdelta, use the xdelta3 library and give it the data within
+                    // TODO: If it's a patch.xdelta, use the xdelta3 library and decode the patch. Write data into a temp file, then overwrite data.win
                     if entry == "mod.toml" || entry == "patch.xdelta" {
                         continue;
                     }
