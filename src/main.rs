@@ -1,5 +1,7 @@
 //#![windows_subsystem = "windows"]   // Flag to not make the console appear
 
+mod utils;
+
 mod main_window;
 use main_window::MyWindow;
 

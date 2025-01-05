@@ -3,6 +3,8 @@ use zip::{read::ZipFile, ZipArchive};
 
 use std::{fs, io::{Read, Write}, path::PathBuf};
 
+use super::stream_from_to;
+
 #[derive(Deserialize, Default, Clone)]
 pub struct ModDependency {
     pub guid: String,
@@ -100,14 +102,7 @@ impl ModFile {
                                 Err(e) => return Err((guid, format!("Failed to read zip content: {}", e.to_string()))),
                                 Ok(mut zip_file) => {
                                     // Better to stream with a buffer than to store the entire file in RAM
-                                    let mut buf = [0u8; 8192];
-                                    while let Ok(count) = zip_file.read(&mut buf) {
-                                        // Wish this could more easily be placed in the while loop
-                                        if count == 0 {
-                                            break;
-                                        }
-                                        let _ = out.write(&buf[..count]);
-                                    }
+                                    stream_from_to::<32768>(|buf| zip_file.read(buf), |buf| out.write(buf));
                                 }
                             }
                         }
