@@ -79,6 +79,7 @@ impl MyWindow {
             )
         };
 
+        // TODO: Add button to main window that opens explorer to the mods directory
         let buttons: Vec<gui::Button> = vec! {
             gui::Button::new(
                 &wnd,
@@ -266,8 +267,10 @@ impl MyWindow {
                         }
                         else if path.is_file() {
                             let _ = zip_file.start_file_from_path(rel_path, foptions);
+                            // TODO: Move to seperate thread and wait for result
+                            // Update message box to inform this is zipping
                             if let Ok(mut f) = File::open(path) {
-                                stream_from_to::<32768>(|buf| f.read(buf), |buf| zip_file.write(buf));
+                                stream_from_to::<65536>(|buf| f.read(buf), |buf| zip_file.write(buf));
                             }
                         }
                     }
@@ -371,7 +374,7 @@ impl MyWindow {
     }
 
     fn apply_mod_files(config: &AppConfig, active_mod_files: Vec<ModFile>) -> Result<(), (String, String)> {
-        // TODO: Purge all files before extracting the origin archive to the game location
+        // TODO: Remove all previously-edited files (store in config), or overwrite them if they exist in origin.zip
         let mut chain: Vec<&ModFile> = vec![];
         for mod_file in active_mod_files.iter() {
             // Init
