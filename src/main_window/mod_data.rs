@@ -1,9 +1,9 @@
 use serde::Deserialize;
-use zip::{read::ZipFile, ZipArchive};
+use zip::read::ZipFile;
 
 use std::{fs, io::{Read, Write}, path::PathBuf};
 
-use super::stream_from_to;
+use crate::utils::stream::*;
 
 #[derive(Deserialize, Default, Clone)]
 pub struct ModDependency {
@@ -46,7 +46,7 @@ impl ModFile {
 
     pub fn new(filepath: PathBuf) -> Result<Self, String> {
         let filepath_str = filepath.to_str().unwrap();
-        match Self::open_archive(&filepath) {
+        match open_archive(&filepath) {
             Ok(mut archive) => {
                 match archive.by_name("mod.toml") {
                     Err(_) => Err(format!("{} does not contain a mod.toml file", filepath_str)),
@@ -65,22 +65,11 @@ impl ModFile {
         }
     }
 
-    pub fn open_archive(filepath: &PathBuf) -> Result<ZipArchive<fs::File>, String> {
-        let filepath_str = filepath.to_str().unwrap();
-        match fs::File::open(&filepath) {
-            Err(e) => Err(format!("Error reading archive at {}: {}", filepath_str, e.to_string())),
-            Ok(file) => {
-                match ZipArchive::new(file) {
-                    Err(e) => Err(format!("Error reading archive {}: {}", filepath_str, e.to_string())),
-                    Ok(archive) => Ok(archive)
-                }
-            }
-        }
-    }
+    
 
     pub fn extract_archive(&self, game_root: &PathBuf) -> Result<(), (String, String)> {
         let guid = self.metadata.guid.clone();
-        match Self::open_archive(&self.filepath) {
+        match open_archive(&self.filepath) {
             Err(e) => return Err((guid, e)),
             Ok(mut archive) => {
                 let entries: Vec<String> = archive.file_names().map(String::from).collect();    // Drops the immutable borrow by making a vector of new strings
