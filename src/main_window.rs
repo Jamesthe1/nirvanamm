@@ -27,6 +27,7 @@ pub struct MyWindow {
 
 impl MyWindow {
     const APPNAME: &str = "NirvanaMM";
+    const BUFSIZE: usize = 524228;
 
     pub fn new() -> Self {
         let wnd = gui::WindowMain::new(
@@ -270,7 +271,7 @@ impl MyWindow {
                             // TODO: Move to seperate thread and wait for result
                             // Update message box to inform this is zipping
                             if let Ok(mut f) = File::open(path) {
-                                stream_from_to::<65536>(|buf| f.read(buf), |buf| zip_file.write(buf));
+                                stream_from_to::<{Self::BUFSIZE}>(|buf| f.read(buf), |buf| zip_file.write(buf));
                             }
                         }
                     }
