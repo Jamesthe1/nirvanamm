@@ -4,6 +4,7 @@ use zip::read::ZipFile;
 use std::{fs, io::{Read, Write}, path::PathBuf};
 
 use crate::utils::stream::*;
+use crate::utils::xdelta3::*;
 
 #[derive(Deserialize, Default, Clone)]
 pub struct ModDependency {
@@ -65,20 +66,26 @@ impl ModFile {
         }
     }
 
-    
-
-    pub fn extract_archive(&self, game_root: &PathBuf) -> Result<(), (String, String)> {
+    pub fn extract_archive(&self, game_root: &PathBuf, temp_dir: &PathBuf, replaced_files: &mut Vec<PathBuf>) -> Result<(), (String, String)> {
         let guid = self.metadata.guid.clone();
+
         match open_archive(&self.filepath) {
             Err(e) => return Err((guid, e)),
             Ok(mut archive) => {
                 let entries: Vec<String> = archive.file_names().map(String::from).collect();    // Drops the immutable borrow by making a vector of new strings
                 for entry in entries.iter() {
-                    // TODO: If it's a patch.xdelta, use the xdelta3 library and decode the patch. Write data into a temp file, then overwrite data.win
-                    if entry == "mod.toml" || entry == "patch.xdelta" {
+                    if entry == "mod.toml" {
                         continue;
                     }
-                    let path = game_root.join(entry);
+                    let is_patch = entry == "patch.xdelta";
+                    let entry_path = PathBuf::from(entry);
+
+                    let path =
+                        if is_patch {
+                            temp_dir.join(entry)
+                        } else {
+                            game_root.join(entry)
+                        };
                     let dir = path.parent().unwrap();
                     if !dir.exists() {
                         let _ = fs::create_dir_all(dir);
@@ -95,6 +102,28 @@ impl ModFile {
                                 }
                             }
                         }
+                    }
+
+                    if is_patch {
+                        let data_win = PathBuf::from("data.win");
+                        let data_out = game_root.join(&data_win);
+                        let data_in = temp_dir.join (&data_win);
+                        match fs::rename(&data_out, &data_in) {
+                            Ok(_) => (),
+                            Err(e) => return Err((guid, format!("Could not move old data.win to temp: {}", e.to_string())))
+                        }
+
+                        match xd3_decode(data_in, path, data_out) {
+                            Ok(_) => (),
+                            Err(i) => return Err((guid, format!("Failed to patch (xdelta3 exit code {})", i)))
+                        }
+
+                        if !replaced_files.contains(&data_win) {
+                            replaced_files.push(data_win);
+                        }
+                    }
+                    else {
+                        replaced_files.push(entry_path);
                     }
                 }
             }

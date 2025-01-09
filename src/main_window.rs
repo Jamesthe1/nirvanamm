@@ -7,13 +7,13 @@ use config::*;
 use crate::utils::stream::*;
 
 use walkdir::WalkDir;
-use zip::{write::SimpleFileOptions, ZipWriter};
+use zip::{write::SimpleFileOptions, ZipArchive, ZipWriter};
 
 use std::{borrow::Borrow, cell::RefCell, fs::{self, File}, io::{Read, Write}, path::PathBuf};
 
 // Prelude automatically imports necessary traits
 use winsafe::{co::{BS, SS, SW, WS}, gui, prelude::*};
-use directories::ProjectDirs;
+use directories::{BaseDirs, ProjectDirs};
 
 #[derive(Clone)]
 pub struct MyWindow {
@@ -282,6 +282,37 @@ impl MyWindow {
         // TODO: Add button called "Reset" that clears the game root, extracts the origin's contents, and purges the origin file and the active mods vector.
     }
 
+    fn reset_to_origin(config: &mut AppConfig) -> Result<(), String> {
+        let origin_path = Self::get_appdata_dir().join("origin.zip");
+        match fs::File::open(origin_path) {
+            Err(e) => Err(format!("Failed to open origin.zip: {}", e.to_string())),
+            Ok(f) => {
+                match ZipArchive::new(f) {
+                    Err(e) => Err(format!("Failed to read origin as zip: {}", e.to_string())),
+                    Ok(mut origin) => {
+                        for entry in config.data_win.replaced_files.iter() {
+                            let out_path = config.data_win.game_root.join(entry);
+                            match origin.by_name(entry.to_str().unwrap()) {
+                                Err(_) => {
+                                    let _ = fs::remove_file(out_path);
+                                },
+                                Ok(mut in_file) => {
+                                    match fs::File::open(out_path) {
+                                        Err(e) => return Err(format!("Failed to extract origin file {}: {}", entry.to_str().unwrap(), e.to_string())),
+                                        Ok(mut out_file) => {
+                                            stream_from_to::<{Self::BUFSIZE}>(|buf| in_file.read(buf), |buf| out_file.write(buf));
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        Ok(())
+                    }
+                }
+            }
+        }
+    }
+
     fn use_selected_data(&self, config: &mut AppConfig) {
         let active_mods = &mut config.data_win.active_mods;
         let mut active_mod_files: Vec<ModFile> = vec![];
@@ -315,7 +346,10 @@ impl MyWindow {
                         Ok(_) => {
                             match Self::apply_mod_files(config, active_mod_files) {
                                 Ok(()) => String::from("Patch success"),
-                                Err((guid, e_msg)) => format!("Failed to apply mod {}\nReason: {}", guid, e_msg)
+                                Err((guid, e_msg)) => match guid {
+                                    Some(g) => format!("Failed to apply mod {}\nReason: {}", g, e_msg),
+                                    None => format!("Failed to apply mods: {}", e_msg)
+                                }
                             }
                         },
                         Err((deps_unsatisfied, mods_blame)) => {
@@ -374,8 +408,11 @@ impl MyWindow {
         }
     }
 
-    fn apply_mod_files(config: &AppConfig, active_mod_files: Vec<ModFile>) -> Result<(), (String, String)> {
-        // TODO: Remove all previously-edited files (store in config), or overwrite them if they exist in origin.zip
+    fn apply_mod_files(config: &mut AppConfig, active_mod_files: Vec<ModFile>) -> Result<(), (Option<String>, String)> {
+        if let Err(e) = Self::reset_to_origin(config) {
+            return Err((None, format!("Failed to reset origin: {}", e.to_string())));
+        }
+        
         let mut chain: Vec<&ModFile> = vec![];
         for mod_file in active_mod_files.iter() {
             // Init
@@ -418,13 +455,19 @@ impl MyWindow {
             chain.insert(dep_pos.last().unwrap() + 1, mod_file);
         }
 
+        let bdirs = BaseDirs::new().unwrap();
+        let temp_dir = bdirs.data_local_dir().join("Temp");
         // Now that we're sorted, let's extract the contents
         for mod_file in chain {
-            if let Err(e) = mod_file.extract_archive(&config.data_win.game_root) {
-                // TODO: Clean up the entire folder and try to extract the origin, if that fails then append "could not reset folder"
-                return Err(e);
+            if let Err(mut e) = mod_file.extract_archive(&config.data_win.game_root, &temp_dir, &mut config.data_win.replaced_files) {
+                if let Err(origin_err) = Self::reset_to_origin(config) {
+                    e.1.push_str(format!("\nFailed to reset origin: {}", origin_err).as_str());
+                }
+                return Err((Some(e.0), e.1));
             }
         }
+
+        let _ = config.save();
         Ok(())
     }
 

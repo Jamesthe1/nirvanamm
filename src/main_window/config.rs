@@ -5,15 +5,15 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone)]
 pub struct DataWinConfig {
     pub game_root: PathBuf,
-    pub active_mods: Vec<String>
+    pub active_mods: Vec<String>,
+    pub replaced_files: Vec<PathBuf>
 }
 
 // Custom default because data_path should always be set
 impl Default for DataWinConfig {
     fn default() -> Self {
         let game_root = PathBuf::from("C:\\Program Files (x86)\\Steam\\steamapps\\common\\ZeroRanger");
-        let active_mods: Vec<String> = vec![];
-        DataWinConfig { game_root, active_mods }
+        DataWinConfig { game_root, active_mods: vec![], replaced_files: vec![] }
     }
 }
 
