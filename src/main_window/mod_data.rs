@@ -108,14 +108,14 @@ impl ModFile {
                         let data_win = PathBuf::from("data.win");
                         let data_out = game_root.join(&data_win);
                         let data_in = temp_dir.join (&data_win);
-                        
+
                         if let Err(_) = fs::rename(&data_out, &data_in) {
                             // Rename only works if they are in the same file system, so we should catch cases that aren't like this
                             match fs::copy(&data_out, &data_in) {
                                 Err(e) => return Err((guid, format!("Could not move old data.win to temp: {}", e.to_string()))),
                                 Ok(_) => {let _ = fs::remove_file(&data_out);}
                             }
-                        };
+                        }
 
                         match xd3.decode(data_in, path, data_out) {
                             Ok(_) => (),
