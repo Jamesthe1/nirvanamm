@@ -9,21 +9,38 @@ use crate::utils::{stream::*, xdelta3::XDelta3};
 use walkdir::WalkDir;
 use zip::{write::SimpleFileOptions, ZipArchive, ZipWriter};
 
+mod asref_winctrl;
+use asref_winctrl::*;
+
 use std::{borrow::Borrow, cell::RefCell, fs::{self, File}, io::{Read, Write}, path::PathBuf};
 
 // Prelude automatically imports necessary traits
-use winsafe::{co::{BS, SS, SW, WS}, gui, prelude::*};
+use winsafe::{co::{BS, SS, SW, WS, WS_EX}, gui, prelude::*};
 use directories::{BaseDirs, ProjectDirs};
 
 #[derive(Clone)]
-pub struct MyWindow {
-    pub wnd:        gui::WindowMain,
-    pub labels:     Vec<gui::Label>,
-    pub buttons:    Vec<gui::Button>,
-    pub main_view:  gui::ListView<ModFile>, // Each item will contain the filename associated
+struct WindowMenu {
+    title:          String,
+    control:        WindowControlWrapper,
+    labels:         Vec<gui::Label>,
+    buttons:        Vec<gui::Button>,
+    edits:          Vec<gui::Edit>,
+    mods_view:      Option<gui::ListView<ModFile>>  // Each item will contain the filename associated
+}
 
-    pub popup:      gui::WindowControl
-    // TODO: Create a pop-up menu with settings, they should change the AppConfig class
+#[derive(Clone)]
+struct PopupWindow {
+    control:    gui::WindowControl,
+    labels:     Vec<gui::Label>,
+    buttons:    Vec<gui::Button>
+}
+
+#[derive(Clone)]
+pub struct MyWindow {
+    pub wnd:    gui::WindowMain,
+    tabs:       gui::Tab,
+    menus:      Vec<WindowMenu>,
+    popup:      PopupWindow
 }
 
 impl MyWindow {
@@ -41,7 +58,7 @@ impl MyWindow {
             }
         );
 
-        let popup = gui::WindowControl::new(
+        let control = gui::WindowControl::new(
             &wnd,
             gui::WindowControlOpts {
                 position: (212, 334),
@@ -50,29 +67,9 @@ impl MyWindow {
                 ..Default::default()
             }
         );
-
-        let labels: Vec<gui::Label> = vec! {
+        let labels = vec! {
             gui::Label::new(
-                &wnd,
-                gui::LabelOpts {
-                    text: String::from(Self::APPNAME),
-                    position: (20, 20),
-                    size: (984, 20),
-                    label_style: SS::CENTER,
-                    ..Default::default()
-                }
-            ),
-            gui::Label::new(
-                &wnd,
-                gui::LabelOpts {
-                    text: String::from("Click on the mod you wish to apply (shift-click for more than one), then click \"Patch\" (or press Alt-P)"),
-                    position: (20, 50),
-                    size: (984, 20),
-                    ..Default::default()
-                }
-            ),
-            gui::Label::new(
-                &popup,
+                &control,
                 gui::LabelOpts {
                     text: String::from("Placeholder"),
                     position: (10, 10),
@@ -81,33 +78,9 @@ impl MyWindow {
                 }
             )
         };
-
-        // TODO: Add button to main window that opens explorer to the mods directory
-        let buttons: Vec<gui::Button> = vec! {
+        let buttons = vec! {
             gui::Button::new(
-                &wnd,
-                gui::ButtonOpts {
-                    text: String::from("&Refresh"),
-                    position: (794, 80),
-                    width: 40,
-                    height: 40,
-                    button_style: BS::CENTER | BS::PUSHBUTTON,
-                    ..Default::default()
-                }
-            ),
-            gui::Button::new(
-                &wnd,
-                gui::ButtonOpts {
-                    text: String::from("&Patch"),
-                    position: (794, 708),
-                    width: 200,
-                    height: 40,
-                    button_style: BS::CENTER | BS::PUSHBUTTON,  // Use ICON flag, set icon somehow
-                    ..Default::default()
-                }
-            ),
-            gui::Button::new(
-                &popup,
+                &control,
                 gui::ButtonOpts {
                     text: String::from("&Ok"),
                     position: ((Self::POPUP_SZ.0 - 70).try_into().unwrap(), (Self::POPUP_SZ.1 - 40).try_into().unwrap()),
@@ -118,13 +91,74 @@ impl MyWindow {
                 }
             )
         };
+        let popup = PopupWindow { control, labels, buttons };
 
-        let main_view: gui::ListView<ModFile> =
+        let mut menus = vec![];
+
+        let control = gui::WindowControl::new(
+            &wnd,
+            gui::WindowControlOpts {
+                position: (0, 20),
+                size: (1024, 748),
+                style: WS::CHILD | WS::CLIPSIBLINGS,
+                ex_style: WS_EX::LEFT | WS_EX::CONTROLPARENT,
+                ..Default::default()
+            }
+        );
+        let control = WindowControlWrapper::new(control);
+        let labels = vec! {
+            gui::Label::new(
+                control.as_ref(),
+                gui::LabelOpts {
+                    text: String::from(Self::APPNAME),
+                    position: (20, 20),
+                    size: (984, 20),
+                    label_style: SS::CENTER,
+                    ..Default::default()
+                }
+            ),
+            gui::Label::new(
+                control.as_ref(),
+                gui::LabelOpts {
+                    text: String::from("Click on the mod you wish to apply (shift-click for more than one), then click \"Patch\" (or press Alt-P)"),
+                    position: (20, 50),
+                    size: (984, 20),
+                    ..Default::default()
+                }
+            )
+        };
+        // TODO: Add button to main window that opens explorer to the mods directory
+        let buttons = vec! {
+            gui::Button::new(
+                control.as_ref(),
+                gui::ButtonOpts {
+                    text: String::from("&Refresh"),
+                    position: (794, 80),
+                    width: 40,
+                    height: 40,
+                    button_style: BS::CENTER | BS::PUSHBUTTON,  // Use ICON flag, set icon somehow
+                    ..Default::default()
+                }
+            ),
+            gui::Button::new(
+                control.as_ref(),
+                gui::ButtonOpts {
+                    text: String::from("&Patch"),
+                    position: (794, 688),
+                    width: 200,
+                    height: 40,
+                    button_style: BS::CENTER | BS::PUSHBUTTON,
+                    ..Default::default()
+                }
+            )
+        };
+        let edits = vec![];
+        let mods_view =
             gui::ListView::new(
-                &wnd,
+                control.as_ref(),
                 gui::ListViewOpts {
                     position: (20, 80),
-                    size: (764, 668),
+                    size: (764, 648),
                     columns: vec! {
                         (String::from("Name"), 200),
                         (String::from("GUID"), 200),
@@ -135,8 +169,85 @@ impl MyWindow {
                     ..Default::default()
                 }
             );
+        let mods_view = Some(mods_view);
+        let title = String::from("Mods");
+        menus.push(WindowMenu { title, control, labels, buttons, edits, mods_view });
 
-        let new_self = Self { wnd, labels, buttons, main_view, popup };
+        let control = gui::WindowControl::new(
+            &wnd,
+            gui::WindowControlOpts {
+                position: (0, 20),
+                size: (1024, 748),
+                style: WS::CHILD | WS::CLIPSIBLINGS,
+                ex_style: WS_EX::LEFT | WS_EX::CONTROLPARENT,
+                ..Default::default()
+            }
+        );
+        let control = WindowControlWrapper::new(control);
+        let labels = vec! {
+            gui::Label::new(
+                control.as_ref(),
+                gui::LabelOpts {
+                    text: String::from(Self::APPNAME),
+                    position: (20, 20),
+                    size: (984, 20),
+                    label_style: SS::CENTER,
+                    ..Default::default()
+                }
+            ),
+            gui::Label::new(
+                control.as_ref(),
+                gui::LabelOpts {
+                    text: String::from("Game directory:"),
+                    position: (20, 50),
+                    size: (497, 20),
+                    ..Default::default()
+                }
+            )
+        };
+        let buttons = vec! {
+            gui::Button::new(
+                control.as_ref(),
+                gui::ButtonOpts {
+                    text: String::from("&Save"),
+                    position: (794, 688),
+                    width: 200,
+                    height: 40,
+                    button_style: BS::CENTER | BS::PUSHBUTTON,
+                    ..Default::default()
+                }
+            )
+        };
+        let edits = vec! {
+            gui::Edit::new(
+                control.as_ref(),
+                gui::EditOpts {
+                    text: String::new(),
+                    position: (497, 50),
+                    width: 507,
+                    height: 20,
+                    ..Default::default()
+                }
+            )
+        };
+        let mods_view = None;
+        let title = String::from("Options");
+        menus.push(WindowMenu { title, control, labels, buttons, edits, mods_view });
+
+        let tabs = gui::Tab::new(
+            &wnd,
+            gui::TabOpts {
+                position: (0, 0),
+                size: (1024, 768),
+                items: menus.iter().map(|wm| {
+                    let wc: Box<dyn AsRef<gui::WindowControl>> = Box::new(wm.control.clone());
+                    (wm.title.clone(), wc)
+                }).collect(),
+                ..Default::default()
+            }
+        );
+
+        let new_self = Self { wnd, tabs, menus, popup };
         new_self.set_btn_events();      // Events can only be set before `run_main` is executed
         new_self.set_window_ready();    // Functions such as `text()` or `items()` will fail if the window hasn't spawned yet (done in run_main), so modify them in the window ready event
         new_self
@@ -252,6 +363,10 @@ impl MyWindow {
         }
     }
 
+    fn fill_options_menu(menu: &WindowMenu, config: &AppConfig) {
+        menu.edits[0].set_text(config.data_win.game_root.to_str().unwrap());
+    }
+
     fn prepare_origin(&self, origin_path: PathBuf, game_root: PathBuf) -> Result<(), String> {
         let foptions = SimpleFileOptions::default();
 
@@ -327,7 +442,8 @@ impl MyWindow {
         if !origin_path.exists() {
             let _ = self.prepare_origin(origin_path, config.data_win.game_root.clone());
         }
-        for it in self.main_view.items().iter_selected() {
+        let mods_view = self.menus[0].mods_view.as_ref();
+        for it in mods_view.unwrap().items().iter_selected() {
             match it.data() {
                 Some(rc_mf) => {
                     let ref_mod_file: &RefCell<ModFile> = rc_mf.borrow();
@@ -361,8 +477,8 @@ impl MyWindow {
                             format!("Missing dependencies: {}\nRequired by: {}", deps_str, blame_str)
                         }
                     };
-                self.labels[2].set_text(msg.as_str());
-                self.popup.hwnd().ShowWindow(SW::SHOW);
+                self.popup.labels[0].set_text(msg.as_str());
+                self.popup.control.hwnd().ShowWindow(SW::SHOW);
             }
         }
     }
@@ -481,23 +597,36 @@ impl MyWindow {
     }
 
     fn set_btn_events(&self) {
+        let buttons = &self.menus[0].buttons;
         let self_clone = self.clone();  // Shallow copy, retains the underlying pointer
-        self.buttons[0].on().bn_clicked(move || {
+        buttons[0].on().bn_clicked(move || {
             let appcfg = Self::get_appcfg();    // New app config is loaded each time this button is clicked, just to freshen data
-            Self::fill_main_view(&self_clone.main_view, &appcfg);
+            let mods_view = self_clone.menus[0].mods_view.as_ref().unwrap();
+            Self::fill_main_view(mods_view, &appcfg);
             Ok(())
         });
 
         let self_clone = self.clone();  // Re-definition because the original clone was moved away
-        self.buttons[1].on().bn_clicked(move || {
+        buttons[1].on().bn_clicked(move || {
             let mut appcfg = Self::get_appcfg();
             self_clone.use_selected_data(&mut appcfg);
             Ok(())
         });
 
+        let buttons = &self.menus[1].buttons;
         let self_clone = self.clone();
-        self.buttons[2].on().bn_clicked(move || {
-            self_clone.popup.hwnd().ShowWindow(SW::HIDE);
+        buttons[0].on().bn_clicked(move || {
+            let mut appcfg = Self::get_appcfg();
+            let path = PathBuf::from(self_clone.menus[1].edits[0].text());
+            appcfg.data_win.game_root = path;
+            let _ = appcfg.save();
+            Ok(())
+        });
+
+        let buttons = &self.popup.buttons;
+        let self_clone = self.clone();
+        buttons[0].on().bn_clicked(move || {
+            self_clone.popup.control.hwnd().ShowWindow(SW::HIDE);
             Ok(())
         });
     }
@@ -506,8 +635,21 @@ impl MyWindow {
         let self_clone = self.clone();
         self.wnd.on().wm_create(move |_| {
             let appcfg = Self::get_appcfg();
-            Self::fill_main_view(&self_clone.main_view, &appcfg);
+            let mods_view = self_clone.menus[0].mods_view.as_ref().unwrap();
+            Self::fill_main_view(mods_view, &appcfg);
             Ok(0)
+        });
+
+        let self_clone = self.clone();
+        self.tabs.on().tcn_sel_change (move || {
+            if self_clone.tabs.items().selected().unwrap().index() != 1 {
+                return Ok(());
+            }
+
+            let appcfg = Self::get_appcfg();
+            let menu = self_clone.menus.get(1).unwrap();
+            Self::fill_options_menu(menu, &appcfg);
+            Ok(())
         });
     }
 }
