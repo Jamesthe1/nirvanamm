@@ -12,7 +12,7 @@ use zip::{write::SimpleFileOptions, ZipArchive, ZipWriter};
 mod asref_winctrl;
 use asref_winctrl::*;
 
-use std::{borrow::Borrow, cell::RefCell, fs::{self, File}, io::{Read, Write}, path::PathBuf};
+use std::{borrow::Borrow, cell::RefCell, fs::{self, File}, io::{Read, Write}, path::PathBuf, process::Command};
 
 // Prelude automatically imports necessary traits
 use winsafe::{co::{BS, SS, SW, WS, WS_EX}, gui, prelude::*};
@@ -148,6 +148,17 @@ impl MyWindow {
                     width: 200,
                     height: 40,
                     button_style: BS::CENTER | BS::PUSHBUTTON,
+                    ..Default::default()
+                }
+            ),
+            gui::Button::new(
+                control.as_ref(),
+                gui::ButtonOpts {
+                    text: String::from("&Mods"),
+                    position: (844, 80),
+                    width: 40,
+                    height: 40,
+                    button_style: BS::CENTER | BS::PUSHBUTTON,  // Use ICON flag, set icon somehow
                     ..Default::default()
                 }
             )
@@ -610,6 +621,13 @@ impl MyWindow {
         buttons[1].on().bn_clicked(move || {
             let mut appcfg = Self::get_appcfg();
             self_clone.use_selected_data(&mut appcfg);
+            Ok(())
+        });
+
+        buttons[2].on().bn_clicked(move || {
+            let _ = Command::new("explorer")
+            .arg(Self::get_appdata_dir().join("mods").as_os_str())
+            .spawn();
             Ok(())
         });
 
