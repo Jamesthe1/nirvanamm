@@ -619,7 +619,13 @@ impl MyWindow {
             let mut appcfg = Self::get_appcfg();
             let path = PathBuf::from(self_clone.menus[1].edits[0].text());
             appcfg.data_win.game_root = path;
-            let _ = appcfg.save();
+            let text = match appcfg.save() {
+                Err(e) => format!("Failed to save config: {}", e),
+                Ok(()) => String::from("Save success")
+            };
+            let text_str = text.as_str();
+            self_clone.popup.labels[0].set_text(text_str);
+            self_clone.popup.control.hwnd().ShowWindow(SW::SHOW);
             Ok(())
         });
 
