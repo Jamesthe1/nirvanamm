@@ -10,6 +10,7 @@
 - Run it for the first time and close it (this will not be necessary in the full release)
 - Go to the app data directory and edit `config.toml`, and make it point to the folder where ZeroRanger is installed
 - Add any mods in the mods folder
+- Open the program again, select a mod, then click "Patch" (this will take a while the first time, make sure your data.win hasn't been modified!)
 
 ## How to make a mod
 - If you have an xdelta file, specifically name it `patch.xdelta`
