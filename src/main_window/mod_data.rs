@@ -25,6 +25,7 @@ pub struct ModMetaData {
     pub guid: String,                       // Useful to have a display name (for end users) and a GUID (for mod developers)
     pub author: String,
     pub version: String,
+    // TODO: Use serde default
     pub depends: Option<Vec<ModDependencyEnum>> // Must be another mod GUID if defined
 }
 
