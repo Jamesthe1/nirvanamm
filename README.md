@@ -1,6 +1,6 @@
-# ZR Mod Manager
+# NirvanaMM
 - Takes .zip files containing metadata and subsequent files, and extracts them
-- Keeps a copy of the original data.win, as well as any mods, in an app data directory (%appdata%\Jamesthe1\NirvanaMM\data)
+- Keeps a copy of the original game files, as well as any mods, in an app data directory (%appdata%\Jamesthe1\NirvanaMM\data)
 - Tracks the mods last used via a TOML file
 - Only one patch can be chosen per dependency (mods without a patch.xdelta are excluded), if there is a patch that depends on another then it may be loaded next
 - Patches any .xdelta with xdelta3 library

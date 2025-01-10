@@ -144,7 +144,7 @@ impl MyWindow {
 
     fn get_appdata_dir() -> PathBuf {
         let pdirs = ProjectDirs::from(
-            "Jamesthe1",
+            "",
             "Jamesthe1",
             Self::APPNAME
         ).unwrap();
