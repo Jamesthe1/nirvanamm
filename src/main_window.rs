@@ -4,7 +4,7 @@ use mod_data::*;
 mod config;
 use config::*;
 
-use crate::utils::stream::*;
+use crate::utils::{stream::*, xdelta3::XDelta3};
 
 use walkdir::WalkDir;
 use zip::{write::SimpleFileOptions, ZipArchive, ZipWriter};
@@ -409,6 +409,12 @@ impl MyWindow {
     }
 
     fn apply_mod_files(config: &mut AppConfig, active_mod_files: Vec<ModFile>) -> Result<(), (Option<String>, String)> {
+        let xd3: XDelta3;
+        match XDelta3::new() {
+            Err(e) => return Err((None, format!("Issue with xdelta3 library: {}", e.to_string()))),
+            Ok(x) => xd3 = x
+        }
+
         if let Err(e) = Self::reset_to_origin(config) {
             return Err((None, format!("Failed to reset origin: {}", e.to_string())));
         }
@@ -459,7 +465,7 @@ impl MyWindow {
         let temp_dir = bdirs.data_local_dir().join("Temp");
         // Now that we're sorted, let's extract the contents
         for mod_file in chain {
-            if let Err(mut e) = mod_file.extract_archive(&config.data_win.game_root, &temp_dir, &mut config.data_win.replaced_files) {
+            if let Err(mut e) = mod_file.extract_archive(&xd3, &config.data_win.game_root, &temp_dir, &mut config.data_win.replaced_files) {
                 if let Err(origin_err) = Self::reset_to_origin(config) {
                     e.1.push_str(format!("\nFailed to reset origin: {}", origin_err).as_str());
                 }

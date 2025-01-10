@@ -66,7 +66,7 @@ impl ModFile {
         }
     }
 
-    pub fn extract_archive(&self, game_root: &PathBuf, temp_dir: &PathBuf, replaced_files: &mut Vec<PathBuf>) -> Result<(), (String, String)> {
+    pub fn extract_archive(&self, xd3: &XDelta3, game_root: &PathBuf, temp_dir: &PathBuf, replaced_files: &mut Vec<PathBuf>) -> Result<(), (String, String)> {
         let guid = self.metadata.guid.clone();
 
         match open_archive(&self.filepath) {
@@ -108,12 +108,16 @@ impl ModFile {
                         let data_win = PathBuf::from("data.win");
                         let data_out = game_root.join(&data_win);
                         let data_in = temp_dir.join (&data_win);
-                        match fs::rename(&data_out, &data_in) {
-                            Ok(_) => (),
-                            Err(e) => return Err((guid, format!("Could not move old data.win to temp: {}", e.to_string())))
-                        }
+                        
+                        if let Err(_) = fs::rename(&data_out, &data_in) {
+                            // Rename only works if they are in the same file system, so we should catch cases that aren't like this
+                            match fs::copy(&data_out, &data_in) {
+                                Err(e) => return Err((guid, format!("Could not move old data.win to temp: {}", e.to_string()))),
+                                Ok(_) => {let _ = fs::remove_file(&data_out);}
+                            }
+                        };
 
-                        match xd3_decode(data_in, path, data_out) {
+                        match xd3.decode(data_in, path, data_out) {
                             Ok(_) => (),
                             Err(i) => return Err((guid, format!("Failed to patch (xdelta3 exit code {})", i)))
                         }
