@@ -8,7 +8,7 @@
 ## How to use
 - Extract the built software to any folder (liblzma.dll and libxdelta3.dll must be next to the exe)
 - Run it and go to options, where you can set where the game is installed (be sure to press "Save")
-- Add any mods in the mods folder of the appdata directory, and click "Refresh"
+- Add any mods into the mods folder (can be found with the "Mods" button), and click "Refresh"
 - Select a mod, then click "Patch" (this will take a while the first time, make sure your data.win hasn't been modified!)
 
 ## How to make a mod
