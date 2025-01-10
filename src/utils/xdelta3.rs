@@ -40,8 +40,9 @@ impl XDelta3 {
     pub fn decode(&self, in_file: PathBuf, patch_file: PathBuf, out_file: PathBuf) -> Result<(), i32> {
         let xd3_main_cmdline: Symbol<unsafe extern "C" fn(i32, *const *const u8) -> i32> = unsafe {self.lib.get(b"xd3_main_cmdline\0").unwrap()};
         let params = [
-            "-d",   // Decode
-            "-f",   // Overwrites output
+            "xdelta3",  // Dummy name
+            "-d",       // Decode
+            "-f",       // Overwrites output
             "-s", in_file.to_str().unwrap(),
             patch_file.to_str().unwrap(),
             out_file.to_str().unwrap()
