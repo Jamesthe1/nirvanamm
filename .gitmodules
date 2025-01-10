@@ -1,3 +1,6 @@
 [submodule "libs/xdelta"]
 	path = libs/xdelta
 	url = git@github.com:marco-calautti/xdelta.git
+[submodule "libs/xz"]
+	path = libs/xz
+	url = git@github.com:tukaani-project/xz.git
