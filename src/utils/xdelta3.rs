@@ -2,11 +2,6 @@ use std::{ffi::c_void, mem, path::PathBuf};
 
 use libloading::{Library, Symbol};
 
-/*#[link(name="xdelta3")]
-extern "C" {
-    fn xd3_main_cmdline(argc: i32, argv: *const *const u8) -> i32;
-}*/
-
 unsafe fn allocate_c_str(input: &str) -> *mut u8 {
     let data = Vec::from(input);
     let len = data.len() + 1;   // Gap for null terminator
