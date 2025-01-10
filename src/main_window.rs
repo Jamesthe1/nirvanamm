@@ -23,6 +23,7 @@ pub struct MyWindow {
     pub main_view:  gui::ListView<ModFile>, // Each item will contain the filename associated
 
     pub popup:      gui::WindowControl
+    // TODO: Create a pop-up menu with settings
 }
 
 impl MyWindow {
