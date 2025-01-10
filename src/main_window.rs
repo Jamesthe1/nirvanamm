@@ -29,6 +29,7 @@ pub struct MyWindow {
 impl MyWindow {
     const APPNAME: &str = "NirvanaMM";
     const BUFSIZE: usize = 524228;
+    const POPUP_SZ: (u32, u32) = (600, 200);
 
     pub fn new() -> Self {
         let wnd = gui::WindowMain::new(
@@ -40,12 +41,11 @@ impl MyWindow {
             }
         );
 
-		// TODO: Heighten popup to 200
         let popup = gui::WindowControl::new(
             &wnd,
             gui::WindowControlOpts {
                 position: (212, 334),
-                size: (600, 100),
+                size: Self::POPUP_SZ,
                 style: WS::CHILD | WS::CLIPSIBLINGS | WS::DLGFRAME,
                 ..Default::default()
             }
@@ -76,7 +76,7 @@ impl MyWindow {
                 gui::LabelOpts {
                     text: String::from("Placeholder"),
                     position: (10, 10),
-                    size: (580, 40),
+                    size: (Self::POPUP_SZ.0 - 20, Self::POPUP_SZ.1 - 60),
                     ..Default::default()
                 }
             )
@@ -110,7 +110,7 @@ impl MyWindow {
                 &popup,
                 gui::ButtonOpts {
                     text: String::from("&Ok"),
-                    position: (530, 60),
+                    position: ((Self::POPUP_SZ.0 - 70).try_into().unwrap(), (Self::POPUP_SZ.1 - 40).try_into().unwrap()),
                     width: 60,
                     height: 30,
                     button_style: BS::CENTER | BS::PUSHBUTTON,
