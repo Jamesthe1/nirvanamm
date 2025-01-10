@@ -1,6 +1,6 @@
 use std::{ffi::c_void, mem, path::PathBuf};
 
-#[link(name="libs\\xdelta3.dll")]
+#[link(name="xdelta3")]
 extern "C" {
     fn xd3_main_cmdline(argc: i32, argv: *const *const u8) -> i32;
 }
