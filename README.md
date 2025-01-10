@@ -7,10 +7,9 @@
 
 ## How to use
 - Extract the built software to any folder (liblzma.dll and libxdelta3.dll must be next to the exe)
-- Run it for the first time and close it (this will not be necessary in the full release)
-- Go to the app data directory and edit `config.toml`, and make it point to the folder where ZeroRanger is installed
-- Add any mods in the mods folder
-- Open the program again, select a mod, then click "Patch" (this will take a while the first time, make sure your data.win hasn't been modified!)
+- Run it and go to options, where you can set where the game is installed (be sure to press "Save")
+- Add any mods in the mods folder of the appdata directory, and click "Refresh"
+- Select a mod, then click "Patch" (this will take a while the first time, make sure your data.win hasn't been modified!)
 
 ## How to make a mod
 - If you have an xdelta file, specifically name it `patch.xdelta`
