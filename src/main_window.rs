@@ -297,7 +297,7 @@ impl MyWindow {
                                     let _ = fs::remove_file(out_path);
                                 },
                                 Ok(mut in_file) => {
-                                    match fs::File::open(out_path) {
+                                    match fs::File::create(out_path) {
                                         Err(e) => return Err(format!("Failed to extract origin file {}: {}", entry.to_str().unwrap(), e.to_string())),
                                         Ok(mut out_file) => {
                                             stream_from_to::<{Self::BUFSIZE}>(|buf| in_file.read(buf), |buf| out_file.write(buf));
@@ -306,6 +306,7 @@ impl MyWindow {
                                 }
                             }
                         }
+                        config.data_win.replaced_files = vec![];
                         Ok(())
                     }
                 }
