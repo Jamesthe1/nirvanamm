@@ -506,20 +506,31 @@ impl MyWindow {
         Ok(())
     }
 
-    fn show_popup<T, U, Ft, Fu>(&self, result: Result<T, U>, ok_text: Ft, err_text: Fu)
+    fn show_popup(&self, text: String) {
+        self.popup.labels[0].set_text(text.as_str());
+        let _ = self.popup.control.hwnd().ShowWindow(SW::SHOW);
+    }
+
+    fn show_popup_result<T, U, Ft, Fu>(&self, result: Result<T, U>, ok_text: Ft, err_text: Fu)
         where
             Ft: Fn(T) -> String,
             Fu: Fn(U) -> String
     {
-        self.show_popup_text(match result {
+        self.show_popup(match result {
             Err(e) => err_text(e),
             Ok(o) => ok_text(o)
         });
     }
 
-    fn show_popup_text(&self, text: String) {
-        self.popup.labels[0].set_text(text.as_str());
-        let _ = self.popup.control.hwnd().ShowWindow(SW::SHOW);
+    fn show_popup_option<T, Ft, F_>(&self, option: Option<T>, some_text: Ft, none_text: F_)
+        where
+            Ft: Fn(T) -> String,
+            F_: Fn() -> String
+    {
+        self.show_popup(match option {
+            Some(t) => some_text(t),
+            None => none_text()
+        });
     }
 
     fn use_selected_data(&self, config: &mut AppConfig) {
@@ -714,7 +725,7 @@ impl MyWindow {
         let self_clone = self.clone();
         buttons[3].on().bn_clicked(move || {
             let mut appcfg = Self::get_appcfg();
-            self_clone.show_popup(
+            self_clone.show_popup_result(
                 Self::purge_to_origin(&mut appcfg),
                 |_| String::from("Reset successful"),
                 |e| format!("Failed to reset: {}", e)
@@ -728,7 +739,7 @@ impl MyWindow {
             let mut appcfg = Self::get_appcfg();
             let path = PathBuf::from(self_clone.menus[1].edits[0].text());
             appcfg.data_win.game_root = path;
-            self_clone.show_popup(
+            self_clone.show_popup_result(
                 appcfg.save(),
                 |_| String::from("Save successful"),
                 |e| format!("Failed to save config: {}", e)
