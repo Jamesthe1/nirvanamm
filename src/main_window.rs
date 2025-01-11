@@ -506,6 +506,22 @@ impl MyWindow {
         Ok(())
     }
 
+    fn show_popup<T, U, Ft, Fu>(&self, result: Result<T, U>, ok_text: Ft, err_text: Fu)
+        where
+            Ft: Fn(T) -> String,
+            Fu: Fn(U) -> String
+    {
+        self.show_popup_text(match result {
+            Err(e) => err_text(e),
+            Ok(o) => ok_text(o)
+        });
+    }
+
+    fn show_popup_text(&self, text: String) {
+        self.popup.labels[0].set_text(text.as_str());
+        let _ = self.popup.control.hwnd().ShowWindow(SW::SHOW);
+    }
+
     fn use_selected_data(&self, config: &mut AppConfig) {
         let active_mods = &mut config.data_win.active_mods;
         let mut active_mod_files: Vec<ModFile> = vec![];
@@ -698,13 +714,11 @@ impl MyWindow {
         let self_clone = self.clone();
         buttons[3].on().bn_clicked(move || {
             let mut appcfg = Self::get_appcfg();
-            let text = match Self::purge_to_origin(&mut appcfg) {
-                Err(e) => format!("Failed to reset: {}", e),
-                Ok(()) => String::from("Reset successful")
-            };
-            let text_str = text.as_str();
-            self_clone.popup.labels[0].set_text(text_str);
-            self_clone.popup.control.hwnd().ShowWindow(SW::SHOW);
+            self_clone.show_popup(
+                Self::purge_to_origin(&mut appcfg),
+                |_| String::from("Reset successful"),
+                |e| format!("Failed to reset: {}", e)
+            );
             Ok(())
         });
 
@@ -714,13 +728,11 @@ impl MyWindow {
             let mut appcfg = Self::get_appcfg();
             let path = PathBuf::from(self_clone.menus[1].edits[0].text());
             appcfg.data_win.game_root = path;
-            let text = match appcfg.save() {
-                Err(e) => format!("Failed to save config: {}", e),
-                Ok(()) => String::from("Save successful")
-            };
-            let text_str = text.as_str();
-            self_clone.popup.labels[0].set_text(text_str);
-            self_clone.popup.control.hwnd().ShowWindow(SW::SHOW);
+            self_clone.show_popup(
+                appcfg.save(),
+                |_| String::from("Save successful"),
+                |e| format!("Failed to save config: {}", e)
+            );
             Ok(())
         });
 
