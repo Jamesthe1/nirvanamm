@@ -583,13 +583,10 @@ impl MyWindow {
                             &md.guid
                         }
                         else {
-                            &blank_str
+                            continue;   // Shouldn't have to care about soft dependencies
                         }
                     }
                 };
-                if *hard_guid == blank_str {
-                    continue;
-                }
                 if active_mod_files.iter().position(|md| md.metadata.guid == *hard_guid).is_none() {
                     deps_unsatisfied.push(hard_guid.clone());
                     failed = true;
