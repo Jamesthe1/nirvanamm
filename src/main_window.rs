@@ -463,8 +463,6 @@ impl MyWindow {
         }
         config.data_win.active_mods.clear();
         config.data_win.replaced_files.clear();
-        
-        println!("Origin path: {}, game path: {}", origin_path.to_str().unwrap(), config.data_win.game_root.to_str().unwrap());
 
         let mut origin_zip = match open_archive(&origin_path) {
             Err(e) => return Err(format!("Failed to open origin.zip: {}", e.to_string())),
