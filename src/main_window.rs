@@ -336,52 +336,54 @@ impl MyWindow {
         let filepaths = Self::get_all_mod_paths(Self::get_appdata_dir());
         for filepath in filepaths.iter() {
             // Making a clone of the filepath so it can exist within ModData
-            match ModFile::new(filepath.to_owned()) {
-                Err(e_msg) => eprintln!("{}", e_msg),
-                Ok(mf) => {
-                    let meta = mf.metadata.clone();
-                    let selected = config.data_win.active_mods.contains(&meta.guid);
+            let mod_file = match ModFile::new(filepath.to_owned()) {
+                Err(e_msg) => {
+                    eprintln!("{}", e_msg);
+                    continue;
+                },
+                Ok(mf) => mf
+            };
+            let meta = mod_file.metadata.clone();
+            let selected = config.data_win.active_mods.contains(&meta.guid);
 
-                    let mut hard_mods: Vec<String> = vec![];
-                    let mut soft_mods: Vec<String> = vec![];
-                    for d in meta.depends.unwrap_or_default().iter() {
-                        match d {
-                            ModDependencyEnum::ImplicitHard(guid) => {
-                                hard_mods.push(guid.to_owned());
-                            }
-                            ModDependencyEnum::DependTable(md) => {
-                                let guid = md.guid.clone();
-                                if md.soft {
-                                    soft_mods.push(format!("[{}]", guid));
-                                }
-                                else {
-                                    hard_mods.push(guid);
-                                }
-                            }
+            let mut hard_mods: Vec<String> = vec![];
+            let mut soft_mods: Vec<String> = vec![];
+            for d in meta.depends.unwrap_or_default().iter() {
+                match d {
+                    ModDependencyEnum::ImplicitHard(guid) => {
+                        hard_mods.push(guid.to_owned());
+                    }
+                    ModDependencyEnum::DependTable(md) => {
+                        let guid = md.guid.clone();
+                        if md.soft {
+                            soft_mods.push(format!("[{}]", guid));
+                        }
+                        else {
+                            hard_mods.push(guid);
                         }
                     }
-
-                    // Done this way because hard dependencies must go first
-                    let sep = String::from (", ");
-                    let mut depend_str = hard_mods.join(&sep);
-                    if hard_mods.len() > 0 && soft_mods.len() > 0 {
-                        depend_str.push_str(&sep);
-                    }
-                    depend_str.push_str(&soft_mods.join(&sep));
-
-                    items.add(
-                        &[
-                            meta.name,
-                            meta.guid,
-                            meta.version,
-                            meta.author,
-                            depend_str
-                        ],
-                        None,
-                        mf
-                    ).select(selected);
                 }
-            };
+            }
+
+            // Done this way because hard dependencies must go first
+            let sep = String::from (", ");
+            let mut depend_str = hard_mods.join(&sep);
+            if hard_mods.len() > 0 && soft_mods.len() > 0 {
+                depend_str.push_str(&sep);
+            }
+            depend_str.push_str(&soft_mods.join(&sep));
+
+            items.add(
+                &[
+                    meta.name,
+                    meta.guid,
+                    meta.version,
+                    meta.author,
+                    depend_str
+                ],
+                None,
+                mod_file
+            ).select(selected);
         }
     }
 
@@ -392,64 +394,61 @@ impl MyWindow {
     fn prepare_origin(&self, origin_path: PathBuf, game_root: PathBuf) -> Result<(), String> {
         let foptions = SimpleFileOptions::default();
 
-        match fs::File::create(origin_path) {
-            Err(e) => Err(e.to_string()),
-            Ok(zf) => {
-                let mut zip_file = ZipWriter::new(zf);
-                for entry_rslt in WalkDir::new(&game_root) {
-                    // If unwrapped without a definition to hold it, it would be dropped and the compiler recognizes that. So we must do it this way.
-                    if let Ok(entry) = entry_rslt {
-                        let path = entry.path();
-                        let rel_path = path.strip_prefix(&game_root).unwrap();
+        let mut origin_zip = match fs::File::create(origin_path) {
+            Err(e) => return Err(e.to_string()),
+            Ok(f) => ZipWriter::new(f)
+        };
+        for entry_rslt in WalkDir::new(&game_root) {
+            // If unwrapped without a definition to hold it, it would be dropped and the compiler recognizes that. So we must do it this way.
+            if let Ok(entry) = entry_rslt {
+                let path = entry.path();
+                let rel_path = path.strip_prefix(&game_root).unwrap();
 
-                        if path.is_dir() {
-                            let _ = zip_file.add_directory_from_path(rel_path, foptions);
-                        }
-                        else if path.is_file() {
-                            let _ = zip_file.start_file_from_path(rel_path, foptions);
-                            // TODO: Move to seperate thread and wait for result
-                            // Update message box to inform this is zipping
-                            if let Ok(mut f) = File::open(path) {
-                                stream_from_to::<{Self::BUFSIZE}>(|buf| f.read(buf), |buf| zip_file.write(buf));
-                            }
-                        }
+                if path.is_dir() {
+                    let _ = origin_zip.add_directory_from_path(rel_path, foptions);
+                }
+                else if path.is_file() {
+                    let _ = origin_zip.start_file_from_path(rel_path, foptions);
+                    // TODO: Move to seperate thread and wait for result
+                    // Update message box to inform this is zipping
+                    if let Ok(mut f) = File::open(path) {
+                        stream_from_to::<{Self::BUFSIZE}>(|buf| f.read(buf), |buf| origin_zip.write(buf));
                     }
                 }
-                Ok(())
             }
         }
+        Ok(())
     }
 
     fn reset_to_origin(config: &mut AppConfig) -> Result<(), String> {
         let origin_path = Self::get_appdata_dir().join("origin.zip");
-        match fs::File::open(origin_path) {
-            Err(e) => Err(format!("Failed to open origin.zip: {}", e.to_string())),
+        let mut origin_zip = match fs::File::open(origin_path) {
+            Err(e) => return Err(format!("Failed to open origin.zip: {}", e.to_string())),
             Ok(f) => {
                 match ZipArchive::new(f) {
-                    Err(e) => Err(format!("Failed to read origin as zip: {}", e.to_string())),
-                    Ok(mut origin) => {
-                        for entry in config.data_win.replaced_files.iter() {
-                            let out_path = config.data_win.game_root.join(entry);
-                            match origin.by_name(entry.to_str().unwrap()) {
-                                Err(_) => {
-                                    let _ = fs::remove_file(out_path);
-                                },
-                                Ok(mut in_file) => {
-                                    match fs::File::create(out_path) {
-                                        Err(e) => return Err(format!("Failed to extract origin file {}: {}", entry.to_str().unwrap(), e.to_string())),
-                                        Ok(mut out_file) => {
-                                            stream_from_to::<{Self::BUFSIZE}>(|buf| in_file.read(buf), |buf| out_file.write(buf));
-                                        }
-                                    }
-                                }
-                            }
+                    Err(e) => return Err(format!("Failed to read origin as zip: {}", e.to_string())),
+                    Ok(zip) => zip
+                }
+            }
+        };
+        for entry in config.data_win.replaced_files.iter() {
+            let out_path = config.data_win.game_root.join(entry);
+            match origin_zip.by_name(entry.to_str().unwrap()) {
+                Err(_) => {
+                    let _ = fs::remove_file(out_path);
+                },
+                Ok(mut in_file) => {
+                    match fs::File::create(out_path) {
+                        Err(e) => return Err(format!("Failed to extract origin file {}: {}", entry.to_str().unwrap(), e.to_string())),
+                        Ok(mut out_file) => {
+                            stream_from_to::<{Self::BUFSIZE}>(|buf| in_file.read(buf), |buf| out_file.write(buf));
                         }
-                        config.data_win.replaced_files = vec![];
-                        Ok(())
                     }
                 }
             }
         }
+        config.data_win.replaced_files = vec![];
+        Ok(())
     }
 
     fn purge_to_origin(config: &mut AppConfig) -> Result<(), String> {
@@ -557,32 +556,26 @@ impl MyWindow {
             };
         }
 
-        match config.save() {
-            Err(e) => eprintln!("Error saving config: {}", e),
-            Ok(_) => {
-                // TODO: Validate before saving the config
-                // TODO: Check for file conflicts (that aren't mod.toml and patch.xdelta) before validating the dependencies
-                let msg =
-                    match Self::validate_mod_selection(&active_mod_files) {
-                        Ok(_) => {
-                            match Self::apply_mod_files(config, active_mod_files) {
-                                Ok(()) => String::from("Patch success"),
-                                Err((guid, e_msg)) => match guid {
-                                    Some(g) => format!("Failed to apply mod {}\nReason: {}", g, e_msg),
-                                    None => format!("Failed to apply mods: {}", e_msg)
-                                }
-                            }
-                        },
-                        Err((deps_unsatisfied, mods_blame)) => {
-                            let deps_str = deps_unsatisfied.join(", ");
-                            let blame_str = mods_blame.join(", ");
-                            format!("Missing dependencies: {}\nRequired by: {}", deps_str, blame_str)
-                        }
-                    };
-                self.popup.labels[0].set_text(msg.as_str());
-                self.popup.control.hwnd().ShowWindow(SW::SHOW);
-            }
+        if let Err((deps_unsatisfied, mods_blame)) = Self::validate_mod_selection(&active_mod_files) {
+            let deps_str = deps_unsatisfied.join(", ");
+            let blame_str = mods_blame.join(", ");
+            self.show_popup(format!("Missing dependencies: {}\nRequired by: {}", deps_str, blame_str));
+            return;
         }
+
+        if let Err((guid, e_msg)) = Self::apply_mod_files(config, active_mod_files) {
+            self.show_popup_option(guid,
+                |g| format!("Failed to apply mod {}\nReason: {}", g, e_msg),
+                || format!("Failed to apply mods: {}", e_msg)
+            );
+            return;
+        }
+
+        self.show_popup_result(
+            config.save(),
+            |_| String::from("Patches succeeded"),
+            |e| format!("Patches succeeded\nError saving config: {}", e)
+        );
     }
 
     fn validate_mod_selection(active_mod_files: &Vec<ModFile>) -> Result<(), (Vec<String>, Vec<String>)> {
@@ -694,7 +687,6 @@ impl MyWindow {
             }
         }
 
-        let _ = config.save();
         Ok(())
     }
 
