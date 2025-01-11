@@ -284,9 +284,8 @@ impl MyWindow {
 
         let appdata_dir = pdirs.data_dir();
         if !appdata_dir.exists() {
-            match fs::create_dir_all(appdata_dir) { // appdata_dir is a borrowed Path, so it does not need to be re-borrowed here
-                Err(e) => panic!("Could not create appdata directory: {}", e.to_string()),
-                Ok(_) => ()
+            if let Err(e) = fs::create_dir_all(appdata_dir) {
+                panic!("Could not create appdata directory: {}", e.to_string());
             }
         }
         appdata_dir.to_path_buf()
@@ -422,28 +421,23 @@ impl MyWindow {
 
     fn reset_to_origin(config: &mut AppConfig) -> Result<(), String> {
         let origin_path = Self::get_appdata_dir().join("origin.zip");
-        let mut origin_zip = match fs::File::open(origin_path) {
+        let mut origin_zip = match open_archive(&origin_path) {
             Err(e) => return Err(format!("Failed to open origin.zip: {}", e.to_string())),
-            Ok(f) => {
-                match ZipArchive::new(f) {
-                    Err(e) => return Err(format!("Failed to read origin as zip: {}", e.to_string())),
-                    Ok(zip) => zip
-                }
-            }
+            Ok(z) => z
         };
         for entry in config.data_win.replaced_files.iter() {
             let out_path = config.data_win.game_root.join(entry);
-            match origin_zip.by_name(entry.to_str().unwrap()) {
+            let mut in_file = match origin_zip.by_name(entry.to_str().unwrap()) {
                 Err(_) => {
                     let _ = fs::remove_file(out_path);
+                    continue;
                 },
-                Ok(mut in_file) => {
-                    match fs::File::create(out_path) {
-                        Err(e) => return Err(format!("Failed to extract origin file {}: {}", entry.to_str().unwrap(), e.to_string())),
-                        Ok(mut out_file) => {
-                            stream_from_to::<{Self::BUFSIZE}>(|buf| in_file.read(buf), |buf| out_file.write(buf));
-                        }
-                    }
+                Ok(z) => z
+            };
+            match fs::File::create(out_path) {
+                Err(e) => return Err(format!("Failed to extract origin file {}: {}", entry.to_str().unwrap(), e.to_string())),
+                Ok(mut out_file) => {
+                    stream_from_to::<{Self::BUFSIZE}>(|buf| in_file.read(buf), |buf| out_file.write(buf));
                 }
             }
         }
@@ -472,12 +466,9 @@ impl MyWindow {
         
         println!("Origin path: {}, game path: {}", origin_path.to_str().unwrap(), config.data_win.game_root.to_str().unwrap());
 
-        let mut origin_zip = match fs::File::open(&origin_path) {
+        let mut origin_zip = match open_archive(&origin_path) {
             Err(e) => return Err(format!("Failed to open origin.zip: {}", e.to_string())),
-            Ok(f) => match ZipArchive::new(f) {
-                Err(e) => return Err(format!("Failed to read origin as zip: {}", e.to_string())),
-                Ok(z) => z
-            }
+            Ok(z) => z
         };
         let fnames: Vec<String> = origin_zip.file_names().map(String::from).collect();  // Lets us use the names without immutable borrowing origin_zip
         for entry in fnames.iter() {
@@ -545,14 +536,11 @@ impl MyWindow {
         }
         let mods_view = self.menus[0].mods_view.as_ref();
         for it in mods_view.unwrap().items().iter_selected() {
-            match it.data() {
-                Some(rc_mf) => {
-                    let ref_mod_file: &RefCell<ModFile> = rc_mf.borrow();
-                    let mod_file = ref_mod_file.borrow();
-                    active_mods.push(mod_file.metadata.guid.to_owned());
-                    active_mod_files.push(mod_file.clone());
-                },
-                None => (),
+            if let Some(rc_mf) = it.data() {
+                let ref_mod_file: &RefCell<ModFile> = rc_mf.borrow();
+                let mod_file = ref_mod_file.borrow();
+                active_mods.push(mod_file.metadata.guid.to_owned());
+                active_mod_files.push(mod_file.clone());
             };
         }
 

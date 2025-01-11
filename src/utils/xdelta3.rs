@@ -104,11 +104,10 @@ impl XDelta3 {
                 String::new()
             }
             else {
-                let mut description: String;
-                match String::from_utf8(buf) {
+                let mut description = match String::from_utf8(buf) {
                     Err(e) => return Err(format!("UTF-8 encoding error: {}", e.to_string())),
-                    Ok(d) => description = d
-                }
+                    Ok(d) => d
+                };
                 description = description.split_off(1);
                 description = match BASE64_STANDARD.decode(description) {
                     Err(e) => return Err(format!("base64 not decodable: {}", e.to_string())),
