@@ -18,6 +18,7 @@ use std::{borrow::Borrow, cell::RefCell, fs::{self, File}, io::{Read, Write}, pa
 use winsafe::{co::{BS, SS, SW, WS, WS_EX}, gui, prelude::*};
 use directories::{BaseDirs, ProjectDirs};
 
+// TODO: Implement and take in Opts structs in the new func
 #[derive(Clone)]
 struct WindowMenu {
     title:          String,
@@ -158,6 +159,17 @@ impl MyWindow {
                     width: 40,
                     height: 40,
                     button_style: BS::CENTER | BS::PUSHBUTTON,  // Use ICON flag, set icon somehow
+                    ..Default::default()
+                }
+            ),
+            gui::Button::new(
+                control.as_ref(),
+                gui::ButtonOpts {
+                    text: String::from("&Reset"),
+                    position: (794, 638),
+                    width: 200,
+                    height: 40,
+                    button_style: BS::CENTER | BS::PUSHBUTTON,
                     ..Default::default()
                 }
             )
@@ -406,7 +418,6 @@ impl MyWindow {
                 Ok(())
             }
         }
-        // TODO: Add button called "Reset" that clears the game root, extracts the origin's contents, and purges the origin file and the active mods vector.
     }
 
     fn reset_to_origin(config: &mut AppConfig) -> Result<(), String> {
@@ -439,6 +450,60 @@ impl MyWindow {
                 }
             }
         }
+    }
+
+    fn purge_to_origin(config: &mut AppConfig) -> Result<(), String> {
+        let origin_path = Self::get_appdata_dir().join("origin.zip");
+
+        for entry in fs::read_dir(&config.data_win.game_root).unwrap() {
+            if entry.is_err() {
+                continue;
+            }
+
+            let path = entry.unwrap().path();
+            if path.is_dir() {
+                let _ = fs::remove_dir_all(path);
+            }
+            else if path.is_file() {
+                let _ = fs::remove_file(path);
+            }
+        }
+        config.data_win.active_mods.clear();
+        config.data_win.replaced_files.clear();
+        
+        println!("Origin path: {}, game path: {}", origin_path.to_str().unwrap(), config.data_win.game_root.to_str().unwrap());
+
+        let mut origin_zip = match fs::File::open(&origin_path) {
+            Err(e) => return Err(format!("Failed to open origin.zip: {}", e.to_string())),
+            Ok(f) => match ZipArchive::new(f) {
+                Err(e) => return Err(format!("Failed to read origin as zip: {}", e.to_string())),
+                Ok(z) => z
+            }
+        };
+        let fnames: Vec<String> = origin_zip.file_names().map(String::from).collect();  // Lets us use the names without immutable borrowing origin_zip
+        for entry in fnames.iter() {
+            let out_path = config.data_win.game_root.join(entry);
+            let in_file = origin_zip.by_name(entry);
+            let mut in_file = in_file.unwrap();
+            if in_file.is_file() {
+                let _ = fs::create_dir_all(out_path.parent().unwrap());
+                match fs::File::create(out_path) {
+                    Err(e) => return Err(format!("Failed to extract origin file {}: {}", entry, e.to_string())),
+                    Ok(mut out_file) => {
+                        stream_from_to::<{Self::BUFSIZE}>(|buf| in_file.read(buf), |buf| out_file.write(buf));
+                    }
+                }
+            }
+            else if in_file.is_dir() {
+                if let Err(e) = fs::create_dir_all(out_path) {
+                    return Err(format!("Failed to create folder {}: {}", entry, e.to_string()));
+                }
+            }
+        }
+        drop(origin_zip);   // Closes the file
+        let _ = fs::remove_file(origin_path);
+
+        Ok(())
     }
 
     fn use_selected_data(&self, config: &mut AppConfig) {
@@ -630,6 +695,19 @@ impl MyWindow {
             Ok(())
         });
 
+        let self_clone = self.clone();
+        buttons[3].on().bn_clicked(move || {
+            let mut appcfg = Self::get_appcfg();
+            let text = match Self::purge_to_origin(&mut appcfg) {
+                Err(e) => format!("Failed to reset: {}", e),
+                Ok(()) => String::from("Reset successful")
+            };
+            let text_str = text.as_str();
+            self_clone.popup.labels[0].set_text(text_str);
+            self_clone.popup.control.hwnd().ShowWindow(SW::SHOW);
+            Ok(())
+        });
+
         let buttons = &self.menus[1].buttons;
         let self_clone = self.clone();
         buttons[0].on().bn_clicked(move || {
@@ -638,7 +716,7 @@ impl MyWindow {
             appcfg.data_win.game_root = path;
             let text = match appcfg.save() {
                 Err(e) => format!("Failed to save config: {}", e),
-                Ok(()) => String::from("Save success")
+                Ok(()) => String::from("Save successful")
             };
             let text_str = text.as_str();
             self_clone.popup.labels[0].set_text(text_str);
