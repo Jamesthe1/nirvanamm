@@ -127,7 +127,6 @@ impl MyWindow {
                 }
             )
         };
-        // TODO: Add button to main window that opens explorer to the mods directory
         let buttons = vec! {
             gui::Button::new(
                 control.as_ref(),
