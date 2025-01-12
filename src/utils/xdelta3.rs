@@ -128,6 +128,8 @@ impl XDelta3 {
     }
 
     pub fn decode(&self, in_file: PathBuf, patch_file: PathBuf, out_file: PathBuf) -> Result<(), i32> {
+        // We cannot set xprintf_message_func (xdelta's logger function) because Rust does not like mutable global variables :(
+        // A workaround would be to compile a small DLL in C with a function that takes in the xprintf function pointer, and sets that global for us
         let xd3_main_cmdline: Symbol<unsafe extern "C" fn(i32, *const *const u8) -> i32> = unsafe {self.lib.get(b"xd3_main_cmdline\0").unwrap()};
         let params = [
             "xdelta3",  // Dummy name
