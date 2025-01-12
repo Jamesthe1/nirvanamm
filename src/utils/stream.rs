@@ -1,4 +1,4 @@
-use std::{io, fs, path::PathBuf};
+use std::{collections::HashSet, fs, hash::Hash, io, path::PathBuf};
 use zip::ZipArchive;
 
 pub fn stream_from_to<const N: usize>(mut read: impl FnMut(&mut [u8]) -> io::Result<usize>, mut write: impl FnMut(&[u8]) -> io::Result<usize>) {
@@ -22,4 +22,12 @@ pub fn open_archive(filepath: &PathBuf) -> Result<ZipArchive<fs::File>, String> 
             }
         }
     }
+}
+
+/// Consumes the vector to deduplicate it
+pub fn dedup<T>(vec: Vec<T>) -> Vec<T>
+    where T: Eq + Hash
+{
+    let set: HashSet<T> = vec.into_iter().collect();  // Since every item in a set is unique, we can use this as a way to deduplicate data
+    set.into_iter().collect()
 }
