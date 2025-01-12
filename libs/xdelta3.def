@@ -1,3 +1,0 @@
-LIBRARY xdelta3
-EXPORTS
-	xd3_main_cmdline
