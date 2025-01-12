@@ -12,7 +12,7 @@ use zip::{write::SimpleFileOptions, ZipWriter};
 mod asref_winctrl;
 use asref_winctrl::*;
 
-use std::{borrow::Borrow, cell::RefCell, collections::{HashMap, HashSet}, fs::{self, File}, io::{Read, Write}, path::PathBuf, process::Command, ptr};
+use std::{borrow::Borrow, cell::RefCell, collections::{HashMap, HashSet}, fs::{self, File}, io::{Read, Write}, path::PathBuf, process::Command};
 
 // Prelude automatically imports necessary traits
 use winsafe::{co::{BS, SS, SW, WS, WS_EX}, gui, prelude::*};
@@ -494,9 +494,25 @@ impl MyWindow {
         Ok(())
     }
 
+    fn get_current_menu(&self) -> &WindowMenu {
+        let index: usize = self.tabs.items().selected().unwrap().index().try_into().unwrap();
+        self.menus.get(index).unwrap()
+    }
+
+    fn set_popup_state(&self, state: bool) {
+        self.tabs.hwnd().EnableWindow(!state);
+        self.get_current_menu().control.as_ref().hwnd().EnableWindow(!state);
+        let _ = self.popup.control.hwnd().ShowWindow(if state {
+            SW::SHOW
+        }
+        else {
+            SW::HIDE
+        });
+    }
+
     fn show_popup(&self, text: String) {
         self.popup.labels[0].set_text(text.as_str());
-        let _ = self.popup.control.hwnd().ShowWindow(SW::SHOW);
+        self.set_popup_state(true);
     }
 
     fn show_popup_result<T, U, Ft, Fu>(&self, result: Result<T, U>, ok_text: Ft, err_text: Fu)
@@ -519,6 +535,10 @@ impl MyWindow {
             Some(t) => some_text(t),
             None => none_text()
         });
+    }
+
+    fn hide_popup(&self) {
+        self.set_popup_state(false);
     }
 
     fn use_selected_data(&self, config: &mut AppConfig) {
@@ -778,7 +798,7 @@ impl MyWindow {
         let buttons = &self.popup.buttons;
         let self_clone = self.clone();
         buttons[0].on().bn_clicked(move || {
-            self_clone.popup.control.hwnd().ShowWindow(SW::HIDE);
+            self_clone.hide_popup();
             Ok(())
         });
     }
