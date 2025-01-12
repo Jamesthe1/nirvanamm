@@ -18,7 +18,6 @@ use std::{borrow::Borrow, cell::RefCell, collections::{HashMap, HashSet}, fs::{s
 use winsafe::{co::{BS, SS, SW, WS, WS_EX}, gui, prelude::*};
 use directories::{BaseDirs, ProjectDirs};
 
-// TODO: Implement and take in Opts structs in the new func
 #[derive(Clone)]
 struct WindowMenu {
     title:          String,
@@ -29,6 +28,30 @@ struct WindowMenu {
     mods_view:      Option<gui::ListView<ModFile>>  // Each item will contain the filename associated
 }
 
+impl WindowMenu {
+    fn new(
+            parent: &impl GuiParent,
+            title: String,
+            control_opts: gui::WindowControlOpts,
+            label_opts: Vec<gui::LabelOpts>,
+            button_opts: Vec<gui::ButtonOpts>,
+            edit_opts: Vec<gui::EditOpts>,
+            list_view_opts: Option<gui::ListViewOpts>
+        ) -> Self {
+        let control = gui::WindowControl::new(parent, control_opts);
+        let control = WindowControlWrapper::new(control);
+        let labels: Vec<gui::Label> = label_opts.into_iter().map(|o| gui::Label::new(control.as_ref(), o)).collect();
+        let buttons: Vec<gui::Button> = button_opts.into_iter().map(|o| gui::Button::new(control.as_ref(), o)).collect();
+        let edits: Vec<gui::Edit> = edit_opts.into_iter().map(|o| gui::Edit::new(control.as_ref(), o)).collect();
+        let mods_view = match list_view_opts {
+            None => None,
+            Some(o) => Some(gui::ListView::new(control.as_ref(), o))
+        };
+        Self { title, control, labels, buttons, edits, mods_view }
+    }
+}
+
+// TODO: Only use one label, make impl with new func (similar to WindowMenu)
 #[derive(Clone)]
 struct PopupWindow {
     control:    gui::WindowControl,
@@ -98,165 +121,126 @@ impl MyWindow {
 
         let mut menus = vec![];
 
-        let control = gui::WindowControl::new(
-            &wnd,
+        let control_opts =
             gui::WindowControlOpts {
                 position: (0, 20),
                 size: (1024, 748),
                 style: WS::CHILD | WS::CLIPSIBLINGS,
                 ex_style: WS_EX::LEFT | WS_EX::CONTROLPARENT,
                 ..Default::default()
+            };
+        let label_opts = vec! {
+            gui::LabelOpts {
+                text: Self::APPNAME.to_string(),
+                position: (20, 20),
+                size: (984, 20),
+                label_style: SS::CENTER,
+                ..Default::default()
+            },
+            gui::LabelOpts {
+                text: "Click on the mod you wish to apply (shift-click for more than one), then click \"Patch\" (or press Alt-P)".to_string(),
+                position: (20, 50),
+                size: (984, 20),
+                ..Default::default()
             }
-        );
-        let control = WindowControlWrapper::new(control);
-        let labels = vec! {
-            gui::Label::new(
-                control.as_ref(),
-                gui::LabelOpts {
-                    text: Self::APPNAME.to_string(),
-                    position: (20, 20),
-                    size: (984, 20),
-                    label_style: SS::CENTER,
-                    ..Default::default()
-                }
-            ),
-            gui::Label::new(
-                control.as_ref(),
-                gui::LabelOpts {
-                    text: "Click on the mod you wish to apply (shift-click for more than one), then click \"Patch\" (or press Alt-P)".to_string(),
-                    position: (20, 50),
-                    size: (984, 20),
-                    ..Default::default()
-                }
-            )
         };
-        let buttons = vec! {
-            gui::Button::new(
-                control.as_ref(),
-                gui::ButtonOpts {
-                    text: "&Refresh".to_string(),
-                    position: (794, 80),
-                    width: 40,
-                    height: 40,
-                    button_style: BS::CENTER | BS::PUSHBUTTON,  // Use ICON flag, set icon somehow
-                    ..Default::default()
-                }
-            ),
-            gui::Button::new(
-                control.as_ref(),
-                gui::ButtonOpts {
-                    text: "&Patch".to_string(),
-                    position: (794, 688),
-                    width: 200,
-                    height: 40,
-                    button_style: BS::CENTER | BS::PUSHBUTTON,
-                    ..Default::default()
-                }
-            ),
-            gui::Button::new(
-                control.as_ref(),
-                gui::ButtonOpts {
-                    text: "&Mods".to_string(),
-                    position: (844, 80),
-                    width: 40,
-                    height: 40,
-                    button_style: BS::CENTER | BS::PUSHBUTTON,  // Use ICON flag, set icon somehow
-                    ..Default::default()
-                }
-            ),
-            gui::Button::new(
-                control.as_ref(),
-                gui::ButtonOpts {
-                    text: "&Reset".to_string(),
-                    position: (794, 638),
-                    width: 200,
-                    height: 40,
-                    button_style: BS::CENTER | BS::PUSHBUTTON,
-                    ..Default::default()
-                }
-            )
+        let button_opts = vec! {
+            gui::ButtonOpts {
+                text: "&Refresh".to_string(),
+                position: (794, 80),
+                width: 40,
+                height: 40,
+                button_style: BS::CENTER | BS::PUSHBUTTON,  // Use ICON flag, set icon somehow
+                ..Default::default()
+            },
+            gui::ButtonOpts {
+                text: "&Patch".to_string(),
+                position: (794, 688),
+                width: 200,
+                height: 40,
+                button_style: BS::CENTER | BS::PUSHBUTTON,
+                ..Default::default()
+            },
+            gui::ButtonOpts {
+                text: "&Mods".to_string(),
+                position: (844, 80),
+                width: 40,
+                height: 40,
+                button_style: BS::CENTER | BS::PUSHBUTTON,  // Use ICON flag, set icon somehow
+                ..Default::default()
+            },
+            gui::ButtonOpts {
+                text: "&Reset".to_string(),
+                position: (794, 638),
+                width: 200,
+                height: 40,
+                button_style: BS::CENTER | BS::PUSHBUTTON,
+                ..Default::default()
+            }
         };
-        let edits = vec![];
-        let mods_view =
-            gui::ListView::new(
-                control.as_ref(),
-                gui::ListViewOpts {
-                    position: (20, 80),
-                    size: (764, 648),
-                    columns: vec! {
-                        ("Name".to_string(), 200),
-                        ("GUID".to_string(), 200),
-                        ("Version".to_string(), 100),
-                        ("Author".to_string(), 150),
-                        ("Depends on".to_string(), 400)
-                    },
-                    ..Default::default()
-                }
-            );
-        let mods_view = Some(mods_view);
+        let edit_opts = vec![];
+        let list_view_opts =
+            gui::ListViewOpts {
+                position: (20, 80),
+                size: (764, 648),
+                columns: vec! {
+                    ("Name".to_string(), 200),
+                    ("GUID".to_string(), 200),
+                    ("Version".to_string(), 100),
+                    ("Author".to_string(), 150),
+                    ("Depends on".to_string(), 400)
+                },
+                ..Default::default()
+            };
+        let list_view_opts = Some(list_view_opts);
         let title = "Mods".to_string();
-        menus.push(WindowMenu { title, control, labels, buttons, edits, mods_view });
+        menus.push(WindowMenu::new(&wnd, title, control_opts, label_opts, button_opts, edit_opts, list_view_opts));
 
-        let control = gui::WindowControl::new(
-            &wnd,
+        let control_opts =
             gui::WindowControlOpts {
                 position: (0, 20),
                 size: (1024, 748),
                 style: WS::CHILD | WS::CLIPSIBLINGS,
                 ex_style: WS_EX::LEFT | WS_EX::CONTROLPARENT,
                 ..Default::default()
+            };
+        let label_opts = vec! {
+            gui::LabelOpts {
+                text: Self::APPNAME.to_string(),
+                position: (20, 20),
+                size: (984, 20),
+                label_style: SS::CENTER,
+                ..Default::default()
+            },
+            gui::LabelOpts {
+                text: "Game directory:".to_string(),
+                position: (20, 50),
+                size: (497, 20),
+                ..Default::default()
             }
-        );
-        let control = WindowControlWrapper::new(control);
-        let labels = vec! {
-            gui::Label::new(
-                control.as_ref(),
-                gui::LabelOpts {
-                    text: Self::APPNAME.to_string(),
-                    position: (20, 20),
-                    size: (984, 20),
-                    label_style: SS::CENTER,
-                    ..Default::default()
-                }
-            ),
-            gui::Label::new(
-                control.as_ref(),
-                gui::LabelOpts {
-                    text: "Game directory:".to_string(),
-                    position: (20, 50),
-                    size: (497, 20),
-                    ..Default::default()
-                }
-            )
         };
-        let buttons = vec! {
-            gui::Button::new(
-                control.as_ref(),
-                gui::ButtonOpts {
-                    text: "&Save".to_string(),
-                    position: (794, 688),
-                    width: 200,
-                    height: 40,
-                    button_style: BS::CENTER | BS::PUSHBUTTON,
-                    ..Default::default()
-                }
-            )
+        let button_opts = vec! {
+            gui::ButtonOpts {
+                text: "&Save".to_string(),
+                position: (794, 688),
+                width: 200,
+                height: 40,
+                button_style: BS::CENTER | BS::PUSHBUTTON,
+                ..Default::default()
+            }
         };
-        let edits = vec! {
-            gui::Edit::new(
-                control.as_ref(),
-                gui::EditOpts {
-                    text: String::new(),
-                    position: (497, 50),
-                    width: 507,
-                    height: 20,
-                    ..Default::default()
-                }
-            )
+        let edit_opts = vec! {
+            gui::EditOpts {
+                text: String::new(),
+                position: (497, 50),
+                width: 507,
+                height: 20,
+                ..Default::default()
+            }
         };
-        let mods_view = None;
+        let list_view_opts = None;
         let title = "Options".to_string();
-        menus.push(WindowMenu { title, control, labels, buttons, edits, mods_view });
+        menus.push(WindowMenu::new(&wnd, title, control_opts, label_opts, button_opts, edit_opts, list_view_opts));
 
         let tabs = gui::Tab::new(
             &wnd,
