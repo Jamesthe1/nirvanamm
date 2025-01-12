@@ -51,12 +51,25 @@ impl WindowMenu {
     }
 }
 
-// TODO: Only use one label, make impl with new func (similar to WindowMenu)
 #[derive(Clone)]
 struct PopupWindow {
     control:    gui::WindowControl,
-    labels:     Vec<gui::Label>,
+    label:      gui::Label,
     buttons:    Vec<gui::Button>
+}
+
+impl PopupWindow {
+    fn new(
+        parent: &impl GuiParent,
+        control_opts: gui::WindowControlOpts,
+        label_opts: gui::LabelOpts,
+        button_opts: Vec<gui::ButtonOpts>
+    ) -> Self {
+        let control = gui::WindowControl::new(parent, control_opts);
+        let label = gui::Label::new(&control, label_opts);
+        let buttons: Vec<gui::Button> = button_opts.into_iter().map(|o| gui::Button::new(&control, o)).collect();
+        Self { control, label, buttons }
+    }
 }
 
 #[derive(Clone)]
@@ -84,40 +97,31 @@ impl MyWindow {
             }
         );
 
-        let control = gui::WindowControl::new(
-            &wnd,
+        let control_opts =
             gui::WindowControlOpts {
                 position: (212, 334),
                 size: Self::POPUP_SZ,
                 style: WS::CHILD | WS::CLIPSIBLINGS | WS::DLGFRAME,
                 ..Default::default()
+            };
+        let label_opts =
+            gui::LabelOpts {
+                text: "Placeholder".to_string(),
+                position: (10, 10),
+                size: (Self::POPUP_SZ.0 - 20, Self::POPUP_SZ.1 - 60),
+                ..Default::default()
+            };
+        let button_opts = vec! {
+            gui::ButtonOpts {
+                text: "&Ok".to_string(),
+                position: ((Self::POPUP_SZ.0 - 70).try_into().unwrap(), (Self::POPUP_SZ.1 - 40).try_into().unwrap()),
+                width: 60,
+                height: 30,
+                button_style: BS::CENTER | BS::PUSHBUTTON,
+                ..Default::default()
             }
-        );
-        let labels = vec! {
-            gui::Label::new(
-                &control,
-                gui::LabelOpts {
-                    text: "Placeholder".to_string(),
-                    position: (10, 10),
-                    size: (Self::POPUP_SZ.0 - 20, Self::POPUP_SZ.1 - 60),
-                    ..Default::default()
-                }
-            )
         };
-        let buttons = vec! {
-            gui::Button::new(
-                &control,
-                gui::ButtonOpts {
-                    text: "&Ok".to_string(),
-                    position: ((Self::POPUP_SZ.0 - 70).try_into().unwrap(), (Self::POPUP_SZ.1 - 40).try_into().unwrap()),
-                    width: 60,
-                    height: 30,
-                    button_style: BS::CENTER | BS::PUSHBUTTON,
-                    ..Default::default()
-                }
-            )
-        };
-        let popup = PopupWindow { control, labels, buttons };
+        let popup = PopupWindow::new(&wnd, control_opts, label_opts, button_opts);
 
         let mut menus = vec![];
 
@@ -498,7 +502,7 @@ impl MyWindow {
     }
 
     fn show_popup(&self, text: String) {
-        self.popup.labels[0].set_text(text.as_str());
+        self.popup.label.set_text(text.as_str());
         self.set_popup_state(true);
     }
 
