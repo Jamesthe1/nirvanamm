@@ -607,16 +607,38 @@ impl MyWindow {
         let mut files: HashMap<String, &ModFile> = HashMap::new();
 
         for mod_file in active_mod_files.iter() {
+            let guid = &mod_file.metadata.guid;
             let mod_zip = match open_archive(&mod_file.filepath) {
                 Err(_) => continue,
                 Ok(z) => z
             };
             
-            let conflicts: Vec<String> = mod_zip.file_names().map(String::from).filter(|e| files.contains_key(e)).collect();
+            let mut conflicts: Vec<String> = mod_zip.file_names().map(String::from).filter(|e| files.contains_key(e)).collect();
+            let mut resolved_conflicts: Vec<String> = vec![];
+            let mut resolved_mods: Vec<&&ModFile> = vec![];
+            for conflict_file in conflicts.iter() {
+                let mod_conflict = files.get(conflict_file).unwrap();
+                // We can save computation time by checking if the mod was already found in the tree
+                if resolved_mods.contains(&mod_conflict) {
+                    resolved_conflicts.push(conflict_file.clone());
+                }
+
+                let mod_deps = mod_file.get_dependency_tree(active_mod_files).unwrap();
+                let conflict_deps = mod_conflict.get_dependency_tree(active_mod_files).unwrap();
+                if mod_deps.in_dependency_tree(&mod_conflict.metadata.guid) || conflict_deps.in_dependency_tree(guid) {
+                    resolved_conflicts.push(conflict_file.clone());
+                    resolved_mods.push(mod_conflict);
+                }
+            }
+            for resolved in resolved_conflicts {
+                let pos = conflicts.iter().position(|s| *s == resolved).unwrap();
+                conflicts.remove(pos);
+            }
+
             if conflicts.len() > 0 {
                 // Hash sets always have unique data, so no duplicates here
                 let conflict_mods: HashSet<String> = conflicts.iter().map(|f| files.get(f).unwrap().metadata.guid.clone()).collect();
-                return Err((mod_file.metadata.guid.clone(), conflict_mods.into_iter().collect(), conflicts));
+                return Err((guid.clone(), conflict_mods.into_iter().collect(), conflicts));
             }
             
             for entry in mod_zip.file_names() {
