@@ -439,12 +439,26 @@ impl MyWindow {
             return Err("Origin not initialized".to_string());
         }
 
-        for entry in fs::read_dir(&config.data_win.game_root).unwrap() {
+        let mut origin_zip = match open_archive(&origin_path) {
+            Err(e) => return Err(format!("Failed to open origin.zip: {}", e.to_string())),
+            Ok(z) => z
+        };
+        let fnames: Vec<&str> = origin_zip.file_names().collect();
+        for entry in WalkDir::new(&config.data_win.game_root) {
             if entry.is_err() {
                 continue;
             }
 
-            let path = entry.unwrap().path();
+            let entry = entry.unwrap();
+            let path = entry.path();
+            
+            let rel_path = path.strip_prefix(&config.data_win.game_root).unwrap();
+            let rel_path = rel_path.to_str().unwrap();
+            // THIS CHECK MUST BE DONE OR OUR FILES WILL BE CORRUPT DUE TO NON-INSTANT DELETION
+            if fnames.contains(&rel_path) {
+                continue;
+            }
+
             if path.is_dir() {
                 let _ = fs::remove_dir_all(path);
             }
@@ -455,11 +469,7 @@ impl MyWindow {
         config.data_win.active_mods.clear();
         config.data_win.replaced_files.clear();
 
-        let mut origin_zip = match open_archive(&origin_path) {
-            Err(e) => return Err(format!("Failed to open origin.zip: {}", e.to_string())),
-            Ok(z) => z
-        };
-        let fnames: Vec<String> = origin_zip.file_names().map(String::from).collect();  // Lets us use the names without immutable borrowing origin_zip
+        let fnames: Vec<String> = fnames.into_iter().map(String::from).collect();  // Lets us use the names without immutable borrowing origin_zip
         for entry in fnames.iter() {
             let out_path = config.data_win.game_root.join(entry);
             let in_file = origin_zip.by_name(entry);
