@@ -181,6 +181,7 @@ impl ModFile {
                     stream_from_to::<32768>(|buf| zip_file.read(buf), |buf| out_file.write(buf));
                 }
             }
+            drop(out_file);  // Drop must happen here or else xdelta will complain the file is still open
 
             if is_patch {
                 let data_out = game_root.join(&data_win);
