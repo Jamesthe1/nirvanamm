@@ -7,12 +7,12 @@ use config::*;
 use crate::utils::{stream::*, xdelta3::XDelta3};
 
 use walkdir::WalkDir;
-use zip::{write::SimpleFileOptions, ZipArchive, ZipWriter};
+use zip::{write::SimpleFileOptions, ZipWriter};
 
 mod asref_winctrl;
 use asref_winctrl::*;
 
-use std::{borrow::Borrow, cell::RefCell, fs::{self, File}, io::{Read, Write}, path::PathBuf, process::Command};
+use std::{borrow::Borrow, cell::RefCell, collections::{HashMap, HashSet}, fs::{self, File}, io::{Read, Write}, path::PathBuf, process::Command, ptr};
 
 // Prelude automatically imports necessary traits
 use winsafe::{co::{BS, SS, SW, WS, WS_EX}, gui, prelude::*};
@@ -601,6 +601,32 @@ impl MyWindow {
         else {
             Ok(())
         }
+    }
+
+    fn check_file_conflicts(active_mod_files: &Vec<ModFile>) -> Result<(), (String, Vec<String>, Vec<String>)> {
+        let mut files: HashMap<String, &ModFile> = HashMap::new();
+
+        for mod_file in active_mod_files.iter() {
+            let mod_zip = match open_archive(&mod_file.filepath) {
+                Err(_) => continue,
+                Ok(z) => z
+            };
+            
+            let conflicts: Vec<String> = mod_zip.file_names().map(String::from).filter(|e| files.contains_key(e)).collect();
+            if conflicts.len() > 0 {
+                // Hash sets always have unique data, so no duplicates here
+                let conflict_mods: HashSet<String> = conflicts.iter().map(|f| files.get(f).unwrap().metadata.guid.clone()).collect();
+                return Err((mod_file.metadata.guid.clone(), conflict_mods.into_iter().collect(), conflicts));
+            }
+            
+            for entry in mod_zip.file_names() {
+                if entry == "mod.toml" || entry == "patch.xdelta" {
+                    continue;
+                }
+                files.insert(entry.to_string(), mod_file);
+            }
+        }
+        Ok(())
     }
 
     fn apply_mod_files(config: &mut AppConfig, active_mod_files: Vec<ModFile>) -> Result<(), (Option<String>, String)> {
