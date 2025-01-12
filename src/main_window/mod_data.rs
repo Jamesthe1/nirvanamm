@@ -25,8 +25,8 @@ pub struct ModMetaData {
     pub guid: String,                       // Useful to have a display name (for end users) and a GUID (for mod developers)
     pub author: String,
     pub version: String,
-    // TODO: Use serde default
-    pub depends: Option<Vec<ModDependencyEnum>> // Must be another mod GUID if defined
+    #[serde(default)]
+    pub depends: Vec<ModDependencyEnum>     // Must be another mod GUID if defined
 }
 
 impl PartialEq for ModMetaData {
@@ -149,11 +149,11 @@ impl ModFile {
 
     pub fn has_dependencies(&self) -> bool {
         let deps = self.metadata.depends.clone();
-        deps.is_some_and(|d| d.len() > 0)
+        deps.len() > 0
     }
 
     pub fn has_dependency(&self, mod_file: &Self) -> bool {
-        let deps = self.metadata.depends.clone().unwrap();
+        let deps = self.metadata.depends.clone();
         deps.iter().find(|d| {
             let guid = match d {
                 ModDependencyEnum::ImplicitHard(guid) => guid,

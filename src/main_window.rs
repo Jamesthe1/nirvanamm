@@ -347,7 +347,7 @@ impl MyWindow {
 
             let mut hard_mods: Vec<String> = vec![];
             let mut soft_mods: Vec<String> = vec![];
-            for d in meta.depends.unwrap_or_default().iter() {
+            for d in meta.depends.iter() {
                 match d {
                     ModDependencyEnum::ImplicitHard(guid) => {
                         hard_mods.push(guid.to_owned());
@@ -565,7 +565,6 @@ impl MyWindow {
     }
 
     fn validate_mod_selection(active_mod_files: &Vec<ModFile>) -> Result<(), (Vec<String>, Vec<String>)> {
-        let blank_str = String::new();
         let mut deps_unsatisfied: Vec<String> = vec![];
         let mut mods_blame: Vec<String> = vec![];
         for mod_file in active_mod_files.iter() {
@@ -573,9 +572,8 @@ impl MyWindow {
                 continue;
             }
             
-            let deps = mod_file.metadata.depends.clone().unwrap();  // Clone because unwrap also consumes
             let mut failed = false;
-            for dep in deps.iter() {
+            for dep in mod_file.metadata.depends.iter() {
                 let hard_guid = match dep {
                     ModDependencyEnum::ImplicitHard(guid) => guid,
                     ModDependencyEnum::DependTable(md) => {
