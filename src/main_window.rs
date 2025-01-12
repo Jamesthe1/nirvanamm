@@ -447,6 +447,9 @@ impl MyWindow {
 
     fn purge_to_origin(config: &mut AppConfig) -> Result<(), String> {
         let origin_path = Self::get_appdata_dir().join("origin.zip");
+        if !origin_path.exists() {
+            return Err("Origin not initialized".to_string());
+        }
 
         for entry in fs::read_dir(&config.data_win.game_root).unwrap() {
             if entry.is_err() {
