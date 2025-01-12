@@ -12,7 +12,7 @@ use zip::{write::SimpleFileOptions, ZipWriter};
 mod asref_winctrl;
 use asref_winctrl::*;
 
-use std::{borrow::Borrow, cell::RefCell, collections::{HashMap, HashSet}, fs::{self, File}, io::{Read, Write}, path::PathBuf, process::Command};
+use std::{borrow::Borrow, cell::RefCell, collections::{HashMap, HashSet}, fs::{self, File}, io::{Read, Write}, path::PathBuf, process::Command, thread};
 
 // Prelude automatically imports necessary traits
 use winsafe::{co::{BS, SS, SW, WS, WS_EX}, gui, prelude::*};
@@ -43,6 +43,8 @@ pub struct MyWindow {
     menus:      Vec<WindowMenu>,
     popup:      PopupWindow
 }
+
+unsafe impl Send for MyWindow {}
 
 impl MyWindow {
     const APPNAME: &str = "NirvanaMM";
@@ -408,8 +410,6 @@ impl MyWindow {
                 }
                 else if path.is_file() {
                     let _ = origin_zip.start_file_from_path(rel_path, foptions);
-                    // TODO: Move to seperate thread and wait for result
-                    // Update message box to inform this is zipping
                     if let Ok(mut f) = File::open(path) {
                         stream_from_to::<{Self::BUFSIZE}>(|buf| f.read(buf), |buf| origin_zip.write(buf));
                     }
@@ -541,17 +541,22 @@ impl MyWindow {
         self.set_popup_state(false);
     }
 
-    fn use_selected_data(&self, config: &mut AppConfig) {
+    fn set_popup_button_state(&self, state: bool) {
+        self.popup.buttons[0].hwnd().ShowWindow(if state {
+            SW::SHOW
+        }
+        else {
+            SW::HIDE
+        });
+    }
+
+    fn use_selected_data_noprep(&self, mut config: AppConfig) {
         let active_mods = &mut config.data_win.active_mods;
         let mut active_mod_files: Vec<ModFile> = vec![];
         if active_mods.len() > 0 {
             active_mods.clear();
         }
 
-        let origin_path = Self::get_appdata_dir().join("origin.zip");
-        if !origin_path.exists() {
-            let _ = self.prepare_origin(origin_path, config.data_win.game_root.clone());
-        }
         let mods_view = self.menus[0].mods_view.as_ref();
         for it in mods_view.unwrap().items().iter_selected() {
             if let Some(rc_mf) = it.data() {
@@ -576,7 +581,7 @@ impl MyWindow {
             return;
         }
 
-        if let Err((guid, e_msg)) = Self::apply_mod_files(config, active_mod_files) {
+        if let Err((guid, e_msg)) = Self::apply_mod_files(&mut config, active_mod_files) {
             self.show_popup_option(guid,
                 |g| format!("Failed to apply mod {}\nReason: {}", g, e_msg),
                 || format!("Failed to apply mods: {}", e_msg)
@@ -589,6 +594,26 @@ impl MyWindow {
             |_| String::from("Patches succeeded"),
             |e| format!("Patches succeeded\nError saving config: {}", e)
         );
+    }
+
+    fn use_selected_data(&self, config: AppConfig) {
+        let origin_path = Self::get_appdata_dir().join("origin.zip");
+        let game_root_clone = config.data_win.game_root.clone();
+        let self_clone = self.clone();
+        if !origin_path.exists() {
+            self.set_popup_button_state(false);
+            self.show_popup("Preparing origin (this may take a while...)".to_string());
+            // THIS IS NOT THREAD SAFE!!! But this is a structural problem with GDI, as we can't make the underlying code contain mutexes without making our own implementation.
+            // So, too bad.
+            thread::spawn(move || {
+                let _ = self_clone.prepare_origin(origin_path, game_root_clone);
+                self_clone.set_popup_button_state(true);
+                self_clone.use_selected_data_noprep(config);
+            });
+        }
+        else {
+            self.use_selected_data_noprep(config);
+        }
     }
 
     fn validate_mod_selection(active_mod_files: &Vec<ModFile>) -> Result<(), (Vec<String>, Vec<String>)> {
@@ -758,8 +783,8 @@ impl MyWindow {
 
         let self_clone = self.clone();  // Re-definition because the original clone was moved away
         buttons[1].on().bn_clicked(move || {
-            let mut appcfg = Self::get_appcfg();
-            self_clone.use_selected_data(&mut appcfg);
+            let appcfg = Self::get_appcfg();
+            self_clone.use_selected_data(appcfg);
             Ok(())
         });
 
