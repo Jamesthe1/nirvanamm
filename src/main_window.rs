@@ -568,7 +568,7 @@ impl MyWindow {
         let mut deps_unsatisfied: Vec<String> = vec![];
         let mut mods_blame: Vec<String> = vec![];
         for mod_file in active_mod_files.iter() {
-            if !mod_file.has_dependencies() {
+            if !mod_file.metadata.has_dependencies() {
                 continue;
             }
             
@@ -650,11 +650,11 @@ impl MyWindow {
 
             // Depended upon by anything in the chain, should go to first hit
             let chain_pos = chain.iter().position(|m| {
-                if !m.has_dependencies() {
+                if !m.metadata.has_dependencies() {
                     false
                 }
                 else {
-                    m.has_dependency(&mod_file)
+                    m.metadata.has_dependency(&mod_file.metadata)
                 }
             });
             if chain_pos.is_some() {
@@ -663,13 +663,13 @@ impl MyWindow {
             }
             
             // Depends upon nothing, should be among the first
-            if !mod_file.has_dependencies() {
+            if !mod_file.metadata.has_dependencies() {
                 chain.insert(0, mod_file);
                 continue;
             }
 
             let dep_pos = chain.iter()
-                .filter(|m| mod_file.has_dependency(m))
+                .filter(|m| mod_file.metadata.has_dependency(&m.metadata))
                 .map(|m| chain.iter().position(|cm| cm == m).unwrap());
 
             // None of the dependencies exist, should be among the last as we expect them to come later

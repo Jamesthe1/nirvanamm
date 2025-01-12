@@ -35,12 +35,81 @@ impl PartialEq for ModMetaData {
     }
 }
 
+impl Eq for ModMetaData {}
+
+impl ModMetaData {
+    pub fn has_dependencies(&self) -> bool {
+        let deps = self.depends.clone();
+        deps.len() > 0
+    }
+
+    pub fn has_dependency(&self, mod_meta: &Self) -> bool {
+        let deps = self.depends.clone();
+        deps.iter().find(|d| {
+            let guid = match d {
+                ModDependencyEnum::ImplicitHard(guid) => guid,
+                ModDependencyEnum::DependTable(md) => &md.guid
+            };
+            *guid == mod_meta.guid
+        }).is_some()
+    }
+
+    /// Will try and build a dependency tree. If a dependency is not satisfied, it will return an Err with the missing GUID.
+    pub fn get_dependency_tree(&self, mod_metas: &Vec<Self>) -> Result<DependencyNode, String> {
+        let guid = self.guid.clone();
+        if self.depends.is_empty() {
+            return Ok(DependencyNode { guid, deps: None });
+        }
+        let mut deps = vec![];
+        for dep in self.depends.iter() {
+            let (guid, soft) = match dep {
+                ModDependencyEnum::ImplicitHard(g) => (g, false),
+                ModDependencyEnum::DependTable(d) => (&d.guid, d.soft)
+            };
+            match mod_metas.iter().find(|m| m.guid == *guid) {
+                None => if !soft { return Err(guid.clone()) },
+                Some(mod_file) => {
+                    match mod_file.get_dependency_tree(mod_metas) {
+                        Err(g) => return Err(g),
+                        Ok(n) => deps.push(n),
+                    }
+                }
+            }
+        }
+        Ok(DependencyNode { guid, deps: Some(deps) })
+    }
+}
+
+#[derive(Clone)]
+pub struct DependencyNode {
+    pub guid: String,
+    pub deps: Option<Vec<DependencyNode>>
+}
+
+impl DependencyNode {
+    pub fn in_dependency_tree(&self, guid: &String) -> bool {
+        if self.guid == *guid {
+            return true;
+        }
+        match &self.deps {
+            None => false,
+            Some(d) => d.iter().position(|d| d.in_dependency_tree(guid)).is_some()
+        }
+    }
+}
+
 #[derive(Deserialize, Default, Clone)]
 pub struct ModFile {
     pub manifest: i32,
     pub metadata: ModMetaData,
     #[serde(skip_serializing, skip_deserializing)]
     pub filepath: PathBuf
+}
+
+impl PartialEq for ModFile {
+    fn eq(&self, other: &Self) -> bool {
+        self.metadata == other.metadata
+    }
 }
 
 impl ModFile {
@@ -147,25 +216,8 @@ impl ModFile {
         }
     }
 
-    pub fn has_dependencies(&self) -> bool {
-        let deps = self.metadata.depends.clone();
-        deps.len() > 0
-    }
-
-    pub fn has_dependency(&self, mod_file: &Self) -> bool {
-        let deps = self.metadata.depends.clone();
-        deps.iter().find(|d| {
-            let guid = match d {
-                ModDependencyEnum::ImplicitHard(guid) => guid,
-                ModDependencyEnum::DependTable(md) => &md.guid
-            };
-            *guid == mod_file.metadata.guid
-        }).is_some()
-    }
-}
-
-impl PartialEq for ModFile {
-    fn eq(&self, other: &Self) -> bool {
-        self.metadata == other.metadata
+    pub fn get_dependency_tree(&self, mod_files: &Vec<Self>) -> Result<DependencyNode, String> {
+        let mod_metas = mod_files.iter().map(|m| m.metadata.clone()).collect();
+        self.metadata.get_dependency_tree(&mod_metas)
     }
 }
