@@ -71,13 +71,13 @@ impl XDelta3 {
         let _ = zip_file.read(&mut buf);
         let version = buf[0];
         if version != 0 {
-            return Err(String::from("Invalid version"));
+            return Err("Invalid version".to_string());
         }
         
         let _ = zip_file.read(&mut buf);
         let flags = buf[0];
         if (flags & 0x04u8) == 0u8 {
-            return Err(String::from("No data present at all"));
+            return Err("No data present at all".to_string());
         }
 
         let use_second_compression = (flags & 0x01u8) != 0;
@@ -95,7 +95,7 @@ impl XDelta3 {
 
         let data_length = Self::decode_var_length(zip_file);
         if data_length < 2 {
-            return Err(String::from("Not enough data"));
+            return Err("Not enough data".to_string());
         }
 
         let mut buf: Vec<u8> = iter::repeat_n(0u8, data_length).collect();

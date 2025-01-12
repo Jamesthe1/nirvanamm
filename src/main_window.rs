@@ -74,7 +74,7 @@ impl MyWindow {
             gui::Label::new(
                 &control,
                 gui::LabelOpts {
-                    text: String::from("Placeholder"),
+                    text: "Placeholder".to_string(),
                     position: (10, 10),
                     size: (Self::POPUP_SZ.0 - 20, Self::POPUP_SZ.1 - 60),
                     ..Default::default()
@@ -85,7 +85,7 @@ impl MyWindow {
             gui::Button::new(
                 &control,
                 gui::ButtonOpts {
-                    text: String::from("&Ok"),
+                    text: "&Ok".to_string(),
                     position: ((Self::POPUP_SZ.0 - 70).try_into().unwrap(), (Self::POPUP_SZ.1 - 40).try_into().unwrap()),
                     width: 60,
                     height: 30,
@@ -113,7 +113,7 @@ impl MyWindow {
             gui::Label::new(
                 control.as_ref(),
                 gui::LabelOpts {
-                    text: String::from(Self::APPNAME),
+                    text: Self::APPNAME.to_string(),
                     position: (20, 20),
                     size: (984, 20),
                     label_style: SS::CENTER,
@@ -123,7 +123,7 @@ impl MyWindow {
             gui::Label::new(
                 control.as_ref(),
                 gui::LabelOpts {
-                    text: String::from("Click on the mod you wish to apply (shift-click for more than one), then click \"Patch\" (or press Alt-P)"),
+                    text: "Click on the mod you wish to apply (shift-click for more than one), then click \"Patch\" (or press Alt-P)".to_string(),
                     position: (20, 50),
                     size: (984, 20),
                     ..Default::default()
@@ -134,7 +134,7 @@ impl MyWindow {
             gui::Button::new(
                 control.as_ref(),
                 gui::ButtonOpts {
-                    text: String::from("&Refresh"),
+                    text: "&Refresh".to_string(),
                     position: (794, 80),
                     width: 40,
                     height: 40,
@@ -145,7 +145,7 @@ impl MyWindow {
             gui::Button::new(
                 control.as_ref(),
                 gui::ButtonOpts {
-                    text: String::from("&Patch"),
+                    text: "&Patch".to_string(),
                     position: (794, 688),
                     width: 200,
                     height: 40,
@@ -156,7 +156,7 @@ impl MyWindow {
             gui::Button::new(
                 control.as_ref(),
                 gui::ButtonOpts {
-                    text: String::from("&Mods"),
+                    text: "&Mods".to_string(),
                     position: (844, 80),
                     width: 40,
                     height: 40,
@@ -167,7 +167,7 @@ impl MyWindow {
             gui::Button::new(
                 control.as_ref(),
                 gui::ButtonOpts {
-                    text: String::from("&Reset"),
+                    text: "&Reset".to_string(),
                     position: (794, 638),
                     width: 200,
                     height: 40,
@@ -184,17 +184,17 @@ impl MyWindow {
                     position: (20, 80),
                     size: (764, 648),
                     columns: vec! {
-                        (String::from("Name"), 200),
-                        (String::from("GUID"), 200),
-                        (String::from("Version"), 100),
-                        (String::from("Author"), 150),
-                        (String::from("Depends on"), 400)
+                        ("Name".to_string(), 200),
+                        ("GUID".to_string(), 200),
+                        ("Version".to_string(), 100),
+                        ("Author".to_string(), 150),
+                        ("Depends on".to_string(), 400)
                     },
                     ..Default::default()
                 }
             );
         let mods_view = Some(mods_view);
-        let title = String::from("Mods");
+        let title = "Mods".to_string();
         menus.push(WindowMenu { title, control, labels, buttons, edits, mods_view });
 
         let control = gui::WindowControl::new(
@@ -212,7 +212,7 @@ impl MyWindow {
             gui::Label::new(
                 control.as_ref(),
                 gui::LabelOpts {
-                    text: String::from(Self::APPNAME),
+                    text: Self::APPNAME.to_string(),
                     position: (20, 20),
                     size: (984, 20),
                     label_style: SS::CENTER,
@@ -222,7 +222,7 @@ impl MyWindow {
             gui::Label::new(
                 control.as_ref(),
                 gui::LabelOpts {
-                    text: String::from("Game directory:"),
+                    text: "Game directory:".to_string(),
                     position: (20, 50),
                     size: (497, 20),
                     ..Default::default()
@@ -233,7 +233,7 @@ impl MyWindow {
             gui::Button::new(
                 control.as_ref(),
                 gui::ButtonOpts {
-                    text: String::from("&Save"),
+                    text: "&Save".to_string(),
                     position: (794, 688),
                     width: 200,
                     height: 40,
@@ -255,7 +255,7 @@ impl MyWindow {
             )
         };
         let mods_view = None;
-        let title = String::from("Options");
+        let title = "Options".to_string();
         menus.push(WindowMenu { title, control, labels, buttons, edits, mods_view });
 
         let tabs = gui::Tab::new(
@@ -367,7 +367,7 @@ impl MyWindow {
             }
 
             // Done this way because hard dependencies must go first
-            let sep = String::from (", ");
+            let sep = ", ".to_string();
             let mut depend_str = hard_mods.join(&sep);
             if hard_mods.len() > 0 && soft_mods.len() > 0 {
                 depend_str.push_str(&sep);
@@ -594,7 +594,7 @@ impl MyWindow {
 
         self.show_popup_result(
             config.save(),
-            |_| String::from("Patches succeeded"),
+            |_| "Patches succeeded".to_string(),
             |e| format!("Patches succeeded\nError saving config: {}", e)
         );
     }
@@ -803,7 +803,7 @@ impl MyWindow {
             let mut appcfg = Self::get_appcfg();
             self_clone.show_popup_result(
                 Self::purge_to_origin(&mut appcfg),
-                |_| String::from("Reset successful"),
+                |_| "Reset successful".to_string(),
                 |e| format!("Failed to reset: {}", e)
             );
             Ok(())
@@ -817,7 +817,7 @@ impl MyWindow {
             appcfg.data_win.game_root = path;
             self_clone.show_popup_result(
                 appcfg.save(),
-                |_| String::from("Save successful"),
+                |_| "Save successful".to_string(),
                 |e| format!("Failed to save config: {}", e)
             );
             Ok(())
