@@ -549,6 +549,13 @@ impl MyWindow {
             return;
         }
 
+        if let Err((guid, mod_conflicts, file_conflicts)) = Self::check_file_conflicts(&active_mod_files) {
+            let files_str = file_conflicts.join(", ");
+            let mods_str = mod_conflicts.join(", ");
+            self.show_popup(format!("Mod {} is incompatible with {}\nConflicting files: {}", guid, mods_str, files_str));
+            return;
+        }
+
         if let Err((guid, e_msg)) = Self::apply_mod_files(config, active_mod_files) {
             self.show_popup_option(guid,
                 |g| format!("Failed to apply mod {}\nReason: {}", g, e_msg),
