@@ -399,7 +399,9 @@ impl MyWindow {
                 else if path.is_file() {
                     let _ = origin_zip.start_file_from_path(rel_path, foptions);
                     if let Ok(mut f) = fs::File::open(path) {
-                        stream_from_to::<{Self::BUFSIZE}>(|buf| f.read(buf), |buf| origin_zip.write(buf));
+                        if let Err(e) = stream_from_to::<{Self::BUFSIZE}>(|buf| f.read(buf), |buf| origin_zip.write_all(buf)) {
+                            return Err(format!("Failed to backup file {}: {}", rel_path.to_str().unwrap(), e));
+                        }
                     }
                 }
             }
@@ -413,6 +415,7 @@ impl MyWindow {
             Err(e) => return Err(format!("Failed to open origin.zip: {}", e.to_string())),
             Ok(z) => z
         };
+        // TODO: Delete files and folders not in zip
         for entry in config.data_win.replaced_files.iter() {
             let out_path = config.data_win.game_root.join(entry);
             let mut in_file = match origin_zip.by_name(entry.to_str().unwrap()) {
@@ -425,7 +428,9 @@ impl MyWindow {
             match fs::File::create(out_path) {
                 Err(e) => return Err(format!("Failed to extract origin file {}: {}", entry.to_str().unwrap(), e.to_string())),
                 Ok(mut out_file) => {
-                    stream_from_to::<{Self::BUFSIZE}>(|buf| in_file.read(buf), |buf| out_file.write(buf));
+                    if let Err(e) = stream_from_to::<{Self::BUFSIZE}>(|buf| in_file.read(buf), |buf| out_file.write_all(buf)) {
+                        return Err(format!("Failed to reset file {}: {}", entry.to_str().unwrap(), e));
+                    }
                 }
             }
         }
@@ -563,12 +568,16 @@ impl MyWindow {
         if !origin_path.exists() {
             self.set_popup_button_state(false);
             self.show_popup("Preparing origin (this may take a while...)".to_string());
-            // THIS IS NOT THREAD SAFE!!! But this is a structural problem with GDI, as we can't make the underlying code contain mutexes without making our own implementation.
+            // THIS IS NOT THREAD SAFE!!! But this is a structural problem with GDI, as we can't make the code contain mutexes without making our own implementation.
             // So, too bad.
             thread::spawn(move || {
-                let _ = self_clone.prepare_origin(origin_path, game_root_clone);
+                if let Err(e) = self_clone.prepare_origin(origin_path, game_root_clone) {
+                    self_clone.show_popup(format!("Could not prepare origin: {}", e));
+                }
+                else {
+                    self_clone.use_selected_data_noprep(config);
+                }
                 self_clone.set_popup_button_state(true);
-                self_clone.use_selected_data_noprep(config);
             });
         }
         else {

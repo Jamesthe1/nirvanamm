@@ -178,7 +178,9 @@ impl ModFile {
                 Err(e) => return Err((guid, format!("Failed to read zip content: {}", e.to_string()))),
                 Ok(mut zip_file) => {
                     // Better to stream with a buffer than to store the entire file in RAM
-                    stream_from_to::<32768>(|buf| zip_file.read(buf), |buf| out_file.write(buf));
+                    if let Err(e) = stream_from_to::<32768>(|buf| zip_file.read(buf), |buf| out_file.write_all(buf)) {
+                        return Err((guid, format!("Failed to extract file {}: {}", entry, e)));
+                    }
                 }
             }
             drop(out_file);  // Drop must happen here or else xdelta will complain the file is still open
