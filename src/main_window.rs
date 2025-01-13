@@ -12,7 +12,7 @@ use zip::{write::SimpleFileOptions, ZipWriter};
 mod asref_winctrl;
 use asref_winctrl::*;
 
-use std::{borrow::Borrow, cell::RefCell, collections::{HashMap, HashSet}, fs::{self, File}, io::{Read, Write}, path::PathBuf, process::Command, thread};
+use std::{borrow::Borrow, cell::RefCell, collections::{HashMap, HashSet}, fs, io::{Read, Write}, path::PathBuf, process::Command, thread};
 
 // Prelude automatically imports necessary traits
 use winsafe::{co::{BS, SS, SW, WS, WS_EX}, gui, prelude::*};
@@ -398,7 +398,7 @@ impl MyWindow {
                 }
                 else if path.is_file() {
                     let _ = origin_zip.start_file_from_path(rel_path, foptions);
-                    if let Ok(mut f) = File::open(path) {
+                    if let Ok(mut f) = fs::File::open(path) {
                         stream_from_to::<{Self::BUFSIZE}>(|buf| f.read(buf), |buf| origin_zip.write(buf));
                     }
                 }
