@@ -84,7 +84,7 @@ unsafe impl Send for MyWindow {}
 
 impl MyWindow {
     const APPNAME: &str = "NirvanaMM";
-    const BUFSIZE: usize = 524228;
+    const BUFSIZE: usize = 1048456;
     const POPUP_SZ: (u32, u32) = (600, 200);
 
     pub fn new() -> Self {
