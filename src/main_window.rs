@@ -438,6 +438,10 @@ impl MyWindow {
         if !origin_path.exists() {
             return Err("Origin not initialized".to_string());
         }
+
+        if let Err(e) = Self::reset_to_origin(config) {
+            return Err(e);
+        }
         
         config.data_win.active_mods.clear();
         config.data_win.replaced_files.clear();
@@ -445,60 +449,6 @@ impl MyWindow {
             return Err(format!("Error saving config: {}", e));
         }
 
-        let mut origin_zip = match open_archive(&origin_path) {
-            Err(e) => return Err(format!("Failed to open origin.zip: {}", e.to_string())),
-            Ok(z) => z
-        };
-        let fnames: Vec<&str> = origin_zip.file_names().collect();
-        for entry in WalkDir::new(&config.data_win.game_root) {
-            if entry.is_err() {
-                continue;
-            }
-
-            let entry = entry.unwrap();
-            let path = entry.path();
-            
-            let rel_path = path.strip_prefix(&config.data_win.game_root).unwrap();
-            let rel_path = rel_path.to_str().unwrap();
-            // THIS CHECK MUST BE DONE OR OUR FILES WILL BE CORRUPT DUE TO NON-INSTANT DELETION
-            // WALKDIR INCLUDES THE GAME ROOT
-            if fnames.contains(&rel_path) || rel_path.is_empty() {
-                continue;
-            }
-
-            if path.is_dir() {
-                // Only remove empty directories, because we will be cleaning filled ones out with walkdir
-                let dir_it = fs::read_dir(path).unwrap();
-                if dir_it.count() == 0 {
-                    let _ = fs::remove_dir_all(path);
-                }
-            }
-            else if path.is_file() {
-                let _ = fs::remove_file(path);
-            }
-        }
-
-        let fnames: Vec<String> = fnames.into_iter().map(String::from).collect();  // Lets us use the names without immutable borrowing origin_zip
-        for entry in fnames.iter() {
-            let out_path = config.data_win.game_root.join(entry);
-            let in_file = origin_zip.by_name(entry);
-            let mut in_file = in_file.unwrap();
-            if in_file.is_file() {
-                let _ = fs::create_dir_all(out_path.parent().unwrap());
-                match fs::File::create(out_path) {
-                    Err(e) => return Err(format!("Failed to extract origin file {}: {}", entry, e.to_string())),
-                    Ok(mut out_file) => {
-                        stream_from_to::<{Self::BUFSIZE}>(|buf| in_file.read(buf), |buf| out_file.write(buf));
-                    }
-                }
-            }
-            else if in_file.is_dir() {
-                if let Err(e) = fs::create_dir_all(out_path) {
-                    return Err(format!("Failed to create folder {}: {}", entry, e.to_string()));
-                }
-            }
-        }
-        drop(origin_zip);   // Closes the file
         let _ = fs::remove_file(origin_path);
 
         Ok(())
