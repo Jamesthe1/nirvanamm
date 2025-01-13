@@ -438,6 +438,12 @@ impl MyWindow {
         if !origin_path.exists() {
             return Err("Origin not initialized".to_string());
         }
+        
+        config.data_win.active_mods.clear();
+        config.data_win.replaced_files.clear();
+        if let Err(e) = config.save() {
+            return Err(format!("Error saving config: {}", e));
+        }
 
         let mut origin_zip = match open_archive(&origin_path) {
             Err(e) => return Err(format!("Failed to open origin.zip: {}", e.to_string())),
@@ -471,8 +477,6 @@ impl MyWindow {
                 let _ = fs::remove_file(path);
             }
         }
-        config.data_win.active_mods.clear();
-        config.data_win.replaced_files.clear();
 
         let fnames: Vec<String> = fnames.into_iter().map(String::from).collect();  // Lets us use the names without immutable borrowing origin_zip
         for entry in fnames.iter() {
