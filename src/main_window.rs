@@ -471,7 +471,6 @@ impl MyWindow {
         }
         
         config.data_win.active_mods.clear();
-        config.data_win.replaced_files.clear();
         if let Err(e) = config.save() {
             return Err(format!("Error saving config: {}", e));
         }
