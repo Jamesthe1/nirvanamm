@@ -429,7 +429,7 @@ impl MyWindow {
                 }
             }
         }
-        config.data_win.replaced_files = vec![];
+        config.data_win.replaced_files.clear();
         Ok(())
     }
 
@@ -455,12 +455,17 @@ impl MyWindow {
             let rel_path = path.strip_prefix(&config.data_win.game_root).unwrap();
             let rel_path = rel_path.to_str().unwrap();
             // THIS CHECK MUST BE DONE OR OUR FILES WILL BE CORRUPT DUE TO NON-INSTANT DELETION
-            if fnames.contains(&rel_path) {
+            // WALKDIR INCLUDES THE GAME ROOT
+            if fnames.contains(&rel_path) || rel_path.is_empty() {
                 continue;
             }
 
             if path.is_dir() {
-                let _ = fs::remove_dir_all(path);
+                // Only remove empty directories, because we will be cleaning filled ones out with walkdir
+                let dir_it = fs::read_dir(path).unwrap();
+                if dir_it.count() == 0 {
+                    let _ = fs::remove_dir_all(path);
+                }
             }
             else if path.is_file() {
                 let _ = fs::remove_file(path);
