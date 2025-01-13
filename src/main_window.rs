@@ -415,7 +415,6 @@ impl MyWindow {
             Err(e) => return Err(format!("Failed to open origin.zip: {}", e.to_string())),
             Ok(z) => z
         };
-        // TODO: Delete files and folders not in zip
         for entry in config.data_win.replaced_files.iter() {
             let out_path = config.data_win.game_root.join(entry);
             let mut in_file = match origin_zip.by_name(entry.to_str().unwrap()) {
@@ -434,6 +433,29 @@ impl MyWindow {
                 }
             }
         }
+
+        // Cleanup on leftover, empty folders (unless they're a part of the .zip)
+        for entry in WalkDir::new(&config.data_win.game_root) {
+            if entry.is_err() {
+                continue;
+            }
+
+            let entry = entry.unwrap();
+            let path = entry.path();
+            if !path.is_dir() {
+                continue;
+            }
+            if fs::read_dir(path).unwrap().count() > 0 {
+                continue;
+            }
+            let pathname = format!("{}/", path.strip_prefix(&config.data_win.game_root).unwrap().to_str().unwrap());
+            if let Ok(_) = origin_zip.by_name(&pathname) {
+                continue;
+            }
+
+            let _ = fs::remove_dir(path);
+        }
+
         config.data_win.replaced_files.clear();
         Ok(())
     }
