@@ -15,7 +15,7 @@ use asref_winctrl::*;
 use std::{borrow::Borrow, cell::RefCell, collections::{HashMap, HashSet}, fs, io::{Read, Write}, path::PathBuf, process::Command, thread};
 
 // Prelude automatically imports necessary traits
-use winsafe::{co::{BS, SS, SW, WS, WS_EX}, gui, prelude::*};
+use winsafe::{co::{BS, LR, SS, SW, WS, WS_EX}, gui, msg::bm::SetImage, prelude::*, BmpIcon, WString, BITMAP, HINSTANCE, HWND, ICONINFOEX, SIZE};
 use directories::{BaseDirs, ProjectDirs};
 
 #[derive(Clone)]
@@ -154,7 +154,7 @@ impl MyWindow {
                 position: (794, 80),
                 width: 40,
                 height: 40,
-                button_style: BS::CENTER | BS::PUSHBUTTON,  // Use ICON flag, set icon somehow
+                button_style: BS::CENTER | BS::PUSHBUTTON | BS::ICON,
                 ..Default::default()
             },
             gui::ButtonOpts {
@@ -170,7 +170,7 @@ impl MyWindow {
                 position: (844, 80),
                 width: 40,
                 height: 40,
-                button_style: BS::CENTER | BS::PUSHBUTTON,  // Use ICON flag, set icon somehow
+                button_style: BS::CENTER | BS::PUSHBUTTON | BS::ICON,
                 ..Default::default()
             },
             gui::ButtonOpts {
@@ -260,6 +260,7 @@ impl MyWindow {
         );
 
         let new_self = Self { wnd, tabs, menus, popup };
+        //new_self.set_btn_icons();
         new_self.set_btn_events();      // Events can only be set before `run_main` is executed
         new_self.set_window_ready();    // Functions such as `text()` or `items()` will fail if the window hasn't spawned yet (done in run_main), so modify them in the window ready event
         new_self
@@ -761,6 +762,31 @@ impl MyWindow {
         Ok(())
     }
 
+    fn set_icon(hwnd: &HWND, filepath: &str) -> Result<BmpIcon, String> {
+        let load = LR::LOADFROMFILE | LR::DEFAULTSIZE | LR::SHARED;
+        let name = winsafe::IdOicStr::Str(WString::from_str(filepath));
+        let mut ico = match HINSTANCE::NULL.LoadImageIcon(name, SIZE::new(0, 0), load) {
+            Err(e) => return Err(format!("Load error: {}", e.FormatMessage())),
+            Ok(ig) => ig
+        };
+
+        let image = BmpIcon::Icon(ico.leak());
+        match unsafe { hwnd.SendMessage(SetImage { image }) } {
+            Err(e) => Err(format!("Set icon error: {}", e.FormatMessage())),
+            Ok(i) => Ok(i)
+        }
+    }
+
+    fn set_btn_icons(&self) {
+        let buttons = &self.menus[0].buttons;
+        if let Err(e) = Self::set_icon(buttons[0].hwnd(), "res/refresh.ico") {
+            eprintln!("Couldn't set refresh icon: {}", e);
+        }
+        if let Err(e) = Self::set_icon(buttons[2].hwnd(), "res/folder.ico") {
+            eprintln!("Couldn't set folder icon: {}", e);
+        }
+    }
+
     fn set_btn_events(&self) {
         let buttons = &self.menus[0].buttons;
         let self_clone = self.clone();  // Shallow copy, retains the underlying pointer
@@ -824,6 +850,7 @@ impl MyWindow {
             let appcfg = Self::get_appcfg();
             let mods_view = self_clone.menus[0].mods_view.as_ref().unwrap();
             Self::fill_main_view(mods_view, &appcfg);
+            self_clone.set_btn_icons(); // Button icons must be set after our window is initialized, because SendMessage relies on their HWND's being created (done in run_main).
             Ok(0)
         });
 
