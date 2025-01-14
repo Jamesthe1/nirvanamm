@@ -15,7 +15,7 @@ use asref_winctrl::*;
 use std::{borrow::Borrow, cell::RefCell, collections::{HashMap, HashSet}, fs, io::{Read, Write}, path::PathBuf, process::Command, thread};
 
 // Prelude automatically imports necessary traits
-use winsafe::{co::{BS, LR, SS, SW, WS, WS_EX}, gui, msg::bm::SetImage, prelude::*, BmpIcon, WString, BITMAP, HINSTANCE, HWND, ICONINFOEX, SIZE};
+use winsafe::{co::{BS, LR, SS, SW, WS, WS_EX}, gui, msg::bm::SetImage, prelude::*, BmpIcon, WString, HINSTANCE, HWND, SIZE};
 use directories::{BaseDirs, ProjectDirs};
 
 #[derive(Clone)]
