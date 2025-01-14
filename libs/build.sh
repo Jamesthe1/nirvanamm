@@ -6,7 +6,7 @@ case $1 in
         if [ -d build ]; then rm -r build; fi
         CMAKE_DIR=$(which cmake)
         GCC_DIR=$(which gcc)
-        ./build_with_cmake.bat $(dirname CMAKE_DIR) $(dirname CMAKE_DIR) ON
+        ./build-with-cmake.bat $(dirname CMAKE_DIR) $(dirname CMAKE_DIR) ON
         mv build/liblzma.dll ../../..
         cd -
         ;;
@@ -22,5 +22,8 @@ case $1 in
         cd xdelta-bridge
         make
         cd -
+        ;;
+    *)
+        echo Specify a build target. \[xz, xdelta, bridge\]
         ;;
 esac
