@@ -15,7 +15,7 @@ use asref_winctrl::*;
 use std::{borrow::Borrow, cell::RefCell, collections::{HashMap, HashSet}, fs, io::{Read, Write}, path::PathBuf, process::Command, thread};
 
 // Prelude automatically imports necessary traits
-use winsafe::{co::{BS, LR, SS, SW, WS, WS_EX}, gui, msg::bm::SetImage, prelude::*, BmpIcon, WString, HINSTANCE, HWND, SIZE};
+use winsafe::{co::{BS, LR, SS, SW, WS, WS_EX}, gui::{self, Icon}, msg::bm::SetImage, prelude::*, BmpIcon, WString, HICON, HINSTANCE, HWND, SIZE};
 use directories::{BaseDirs, ProjectDirs};
 
 #[derive(Clone)]
@@ -88,11 +88,17 @@ impl MyWindow {
     const POPUP_SZ: (u32, u32) = (600, 200);
 
     pub fn new() -> Self {
+        let class_icon = match Self::load_shared_icon("res/dorg.ico") {
+            Err(e) => panic!("Couldn't load main icon: {}", e),
+            Ok(ico) => Icon::Handle(ico)
+        };
+
         let wnd = gui::WindowMain::new(
             gui::WindowMainOpts {
                 title: format!("{} Control Panel", Self::APPNAME),
                 size: (1024, 768),
                 style: WS::CAPTION | WS::SYSMENU | WS::CLIPCHILDREN | WS::BORDER | WS::VISIBLE | WS::MINIMIZEBOX | WS::MAXIMIZEBOX,
+                class_icon,
                 ..Default::default()    // Makes the rest of the fields default
             }
         );
@@ -761,15 +767,20 @@ impl MyWindow {
         Ok(())
     }
 
-    fn set_icon(hwnd: &HWND, filepath: &str) -> Result<BmpIcon, String> {
+    fn load_shared_icon(filepath: &str) -> Result<HICON, String> {
         let load = LR::LOADFROMFILE | LR::DEFAULTSIZE | LR::SHARED;
         let name = winsafe::IdOicStr::Str(WString::from_str(filepath));
-        let mut ico = match HINSTANCE::NULL.LoadImageIcon(name, SIZE::new(0, 0), load) {
+        match HINSTANCE::NULL.LoadImageIcon(name, SIZE::new(0, 0), load) {
             Err(e) => return Err(format!("Load error: {}", e.FormatMessage())),
-            Ok(ig) => ig
-        };
+            Ok(mut ig) => Ok(ig.leak()) // OK to leak because shared icons should not be destroyed
+        }
+    }
 
-        let image = BmpIcon::Icon(ico.leak());
+    fn set_icon(hwnd: &HWND, filepath: &str) -> Result<BmpIcon, String> {
+        let image = match Self::load_shared_icon(filepath) {
+            Err(e) => return Err(e),
+            Ok(ico) => BmpIcon::Icon(ico)
+        };
         match unsafe { hwnd.SendMessage(SetImage { image }) } {
             Err(e) => Err(format!("Set icon error: {}", e.FormatMessage())),
             Ok(i) => Ok(i)
