@@ -260,7 +260,6 @@ impl MyWindow {
         );
 
         let new_self = Self { wnd, tabs, menus, popup };
-        //new_self.set_btn_icons();
         new_self.set_btn_events();      // Events can only be set before `run_main` is executed
         new_self.set_window_ready();    // Functions such as `text()` or `items()` will fail if the window hasn't spawned yet (done in run_main), so modify them in the window ready event
         new_self
@@ -291,7 +290,7 @@ impl MyWindow {
         let mods_dir = appdata_dir.join(ModFile::SUBDIRECTORY);
         if !mods_dir.exists() {
             match fs::create_dir(&mods_dir) {
-                Err(e) => panic!("Could not create mods directory in appdata: {}", e.to_string()),
+                Err(e) => panic!("Could not create mods directory in appdata: {}", e.to_string()),  // TODO: Make this return as Err instead of panicking, return type becomes Result
                 Ok(_) => ()
             }
         }
@@ -498,6 +497,7 @@ impl MyWindow {
     }
 
     fn show_popup(&self, text: String) {
+        // TODO: Copy errors to logger, in the functions where this is used to display them
         self.popup.label.set_text(text.as_str());
         self.set_popup_state(true);
     }
@@ -590,8 +590,7 @@ impl MyWindow {
         if !origin_path.exists() {
             self.set_popup_button_state(false);
             self.show_popup("Preparing origin (this may take a while...)".to_string());
-            // THIS IS NOT THREAD SAFE!!! But this is a structural problem with GDI, as we can't make the code contain mutexes without making our own implementation.
-            // So, too bad.
+            // GDI can handle thread safety just fine actually, given it uses the message system with locks
             thread::spawn(move || {
                 if let Err(e) = self_clone.prepare_origin(origin_path, game_root_clone) {
                     self_clone.show_popup(format!("Could not prepare origin: {}", e));
@@ -788,6 +787,8 @@ impl MyWindow {
     }
 
     fn set_btn_events(&self) {
+        // TODO: Create a logger and clone it into various functions, if necessary
+        // It must be able to print to console and write to a file
         let buttons = &self.menus[0].buttons;
         let self_clone = self.clone();  // Shallow copy, retains the underlying pointer
         buttons[0].on().bn_clicked(move || {
