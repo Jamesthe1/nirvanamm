@@ -174,7 +174,7 @@ impl MyWindow {
                 ..Default::default()
             },
             gui::ButtonOpts {
-                text: "&Reset".to_string(),
+                text: "Reset".to_string(),
                 position: (794, 638),
                 width: 200,
                 height: 40,
