@@ -92,7 +92,7 @@ impl MyWindow {
             gui::WindowMainOpts {
                 title: format!("{} Control Panel", Self::APPNAME),
                 size: (1024, 768),
-                style: WS::CAPTION | WS::SYSMENU | WS::CLIPCHILDREN | WS::BORDER | WS::VISIBLE | WS::SIZEBOX | WS::MINIMIZEBOX | WS::MAXIMIZEBOX,
+                style: WS::CAPTION | WS::SYSMENU | WS::CLIPCHILDREN | WS::BORDER | WS::VISIBLE | WS::MINIMIZEBOX | WS::MAXIMIZEBOX,
                 ..Default::default()    // Makes the rest of the fields default
             }
         );
