@@ -199,7 +199,7 @@ impl ModFile {
 
                 match xd3.decode(data_in, path, data_out) {
                     Ok(_) => (),
-                    Err(i) => return Err((guid, format!("Failed to patch (xdelta3 exit code {})", i)))
+                    Err(e_msg) => return Err((guid, format!("Failed to patch due to an issue encountered by xdelta3.\n\n{}", e_msg)))
                 }
             }
         }

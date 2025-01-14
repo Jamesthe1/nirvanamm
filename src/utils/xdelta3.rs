@@ -1,4 +1,4 @@
-use std::{ffi::c_void, mem, path::PathBuf};
+use std::{ffi::c_void, mem, path::PathBuf, sync::{LazyLock, Mutex}};
 
 use libloading::{Library, Symbol};
 
@@ -23,6 +23,20 @@ unsafe fn deallocate_c_str(ptr: *mut u8) {
     libc::free(ptr as *mut c_void);
 }
 
+type XPrintFPtr = *const fn(*mut u8) -> ();
+static XD3_MESSAGES: LazyLock<Mutex<Vec<String>>> = LazyLock::new(|| Mutex::new(vec![]));
+
+unsafe fn xd3_message_collect(mut msg: *mut u8) {
+    let mut str = String::new();
+    let mut lc = msg.read();
+    while lc != 0 {
+        str.push(char::from(lc));
+        msg = msg.offset(1);
+        lc = msg.read();
+    }
+    XD3_MESSAGES.lock().unwrap().push(str);
+}
+
 pub struct XDelta3 {
     lib: Library
 }
@@ -30,17 +44,18 @@ pub struct XDelta3 {
 impl XDelta3 {
     pub fn new() -> Result<XDelta3, String> {
         match unsafe {
-            Library::new("libxdelta3.dll")
+            Library::new("xdelta3_bridge.dll")
         } {
             Err(e) => Err(e.to_string()),
             Ok(lib) => Ok(XDelta3 { lib })
         }
     }
 
-    pub fn decode(&self, in_file: PathBuf, patch_file: PathBuf, out_file: PathBuf) -> Result<(), i32> {
+    pub fn decode(&self, in_file: PathBuf, patch_file: PathBuf, out_file: PathBuf) -> Result<(), String> {
         // We cannot set xprintf_message_func (xdelta's logger function) because Rust does not like mutable global variables :(
         // A workaround would be to compile a small DLL in C with a function that takes in the xprintf function pointer, and sets that global for us
-        let xd3_main_cmdline: Symbol<unsafe extern "C" fn(i32, *const *const u8) -> i32> = unsafe {self.lib.get(b"xd3_main_cmdline\0").unwrap()};
+        // TODO: Implement
+        let xd3_call: Symbol<unsafe extern "C" fn(i32, *const *const u8, XPrintFPtr) -> i32> = unsafe {self.lib.get(b"xd3_call\0").unwrap()};
         let params = [
             "xdelta3",  // Dummy name
             "-d",       // Decode
@@ -49,12 +64,12 @@ impl XDelta3 {
             patch_file.to_str().unwrap(),
             out_file.to_str().unwrap()
         ];
-    
+
         // Not emplacing in its own function, lest the pointer would end up outliving the vector
         unsafe {
             let c_strings: Vec<*mut u8> = params.iter().map(|s| allocate_c_str(s)).collect();
             let argv = c_strings.as_ptr() as *const *const u8;
-            let res = xd3_main_cmdline(c_strings.len().try_into().unwrap(), argv);  // I wish we could interface with xdelta3's inner workings without having to re-write the entire xd3_stream struct in Rust
+            let res = xd3_call(c_strings.len().try_into().unwrap(), argv, xd3_message_collect as XPrintFPtr);
     
             // Doing it this way because we want to consume these pointers, as they will have no data attached to them once freed
             for c_str in c_strings {
@@ -65,7 +80,10 @@ impl XDelta3 {
                 Ok(())
             }
             else {
-                Err(res)
+                let mut msg_guard = XD3_MESSAGES.lock().unwrap();
+                let messages = msg_guard.join("");
+                msg_guard.clear();
+                Err(messages)
             }
         }
     }
