@@ -178,14 +178,6 @@ impl MyWindow {
                 height: 40,
                 button_style: BS::CENTER | BS::PUSHBUTTON | BS::ICON,
                 ..Default::default()
-            },
-            gui::ButtonOpts {
-                text: "Reset".to_string(),
-                position: (794, 638),
-                width: 200,
-                height: 40,
-                button_style: BS::CENTER | BS::PUSHBUTTON,
-                ..Default::default()
             }
         };
         let edit_opts = vec![];
@@ -233,6 +225,14 @@ impl MyWindow {
             gui::ButtonOpts {
                 text: "&Save".to_string(),
                 position: (794, 688),
+                width: 200,
+                height: 40,
+                button_style: BS::CENTER | BS::PUSHBUTTON,
+                ..Default::default()
+            },
+            gui::ButtonOpts {   // TODO: Tooltip that says "Clears out all modded files and deletes the game backup, meant for updates or broken installations"
+                text: "Reset Origin".to_string(),
+                position: (794, 638),
                 width: 200,
                 height: 40,
                 button_style: BS::CENTER | BS::PUSHBUTTON,
@@ -823,17 +823,6 @@ impl MyWindow {
             Ok(())
         });
 
-        let self_clone = self.clone();
-        buttons[3].on().bn_clicked(move || {
-            let mut appcfg = Self::get_appcfg();
-            self_clone.show_popup_result(
-                Self::purge_to_origin(&mut appcfg),
-                |_| "Reset successful".to_string(),
-                |e| format!("Failed to reset: {}", e)
-            );
-            Ok(())
-        });
-
         let buttons = &self.menus[1].buttons;
         let self_clone = self.clone();
         buttons[0].on().bn_clicked(move || {
@@ -844,6 +833,17 @@ impl MyWindow {
                 appcfg.save(),
                 |_| "Save successful".to_string(),
                 |e| format!("Failed to save config: {}", e)
+            );
+            Ok(())
+        });
+
+        let self_clone = self.clone();
+        buttons[1].on().bn_clicked(move || {
+            let mut appcfg = Self::get_appcfg();
+            self_clone.show_popup_result(
+                Self::purge_to_origin(&mut appcfg),
+                |_| "Reset successful".to_string(),
+                |e| format!("Failed to reset: {}", e)
             );
             Ok(())
         });
