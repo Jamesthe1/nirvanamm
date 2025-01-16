@@ -4,6 +4,7 @@ use mod_data::*;
 
 mod config;
 use config::*;
+use semver::VersionReq;
 
 use crate::utils::{stream::*, xdelta3::XDelta3};
 
@@ -350,20 +351,13 @@ impl MyWindow {
 
             let mut hard_mods: Vec<String> = vec![];
             let mut soft_mods: Vec<String> = vec![];
-            for d in meta.depends.iter() {
-                match d {
-                    ModDependencyEnum::ImplicitHard(guid) => {
-                        hard_mods.push(guid.to_owned());
-                    }
-                    ModDependencyEnum::DependTable(md) => {
-                        let guid = md.guid.clone();
-                        if md.soft {
-                            soft_mods.push(format!("[{}]", guid));
-                        }
-                        else {
-                            hard_mods.push(guid);
-                        }
-                    }
+            for dep in meta.depends.iter().map(|d| ModMetaData::get_dependency(d).unwrap()) {
+                let guid = format!("{} {}", dep.guid, dep.version);
+                if dep.soft {
+                    soft_mods.push(format!("[{}]", guid));
+                }
+                else {
+                    hard_mods.push(guid);
                 }
             }
 
@@ -642,20 +636,12 @@ impl MyWindow {
             }
             
             let mut failed = false;
-            for dep in mod_file.metadata.depends.iter() {
-                let hard_guid = match dep {
-                    ModDependencyEnum::ImplicitHard(guid) => guid,
-                    ModDependencyEnum::DependTable(md) => {
-                        if !md.soft {
-                            &md.guid
-                        }
-                        else {
-                            continue;   // Shouldn't have to care about soft dependencies
-                        }
-                    }
-                };
-                if active_mod_files.iter().position(|md| md.metadata.guid == *hard_guid).is_none() {
-                    deps_unsatisfied.push(hard_guid.clone());
+            for dep in mod_file.metadata.depends.iter().map(|d| ModMetaData::get_dependency(d).unwrap()) {
+                if dep.soft {
+                    continue;
+                }
+                if active_mod_files.iter().position(|md| md.metadata.matches_dependency(&dep)).is_none() {
+                    deps_unsatisfied.push(format!("{} {}", dep.guid, dep.version));
                     failed = true;
                 }
             }

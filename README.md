@@ -20,11 +20,12 @@ manifest = 1
 [metadata]
 name = "Mod Name"
 guid = "mod.guid"
-version = "v1.0.0"
+version = "1.0.0"	# Must follow semantic versioning (https://semver.org)
 author = "Author or Team Name"
 depends = [ # Optional
-	"example.hard.dependency",
-	{guid = "example.soft.dependency", soft = true}
+	"example.hard.dependency:>=0.5",
+	{guid = "example.hard.dependency.tabled", version="1.0"},
+	{guid = "example.soft.dependency", soft = true, version="<2.0.0"}
 ]
 ```
 - Create a .zip file

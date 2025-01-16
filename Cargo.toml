@@ -10,6 +10,7 @@ directories = "5.0.1"
 libc = "0.2.169"
 libloading = "0.8.6"
 log = "0.4.25"
+semver = "1.0.24"
 serde = { version = "1.0.217", features = ["serde_derive"] }
 serde_with = "3.12.0"
 simple-logging = "2.0.2"

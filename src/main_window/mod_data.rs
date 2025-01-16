@@ -1,3 +1,4 @@
+use semver::VersionReq;
 use serde::Deserialize;
 use zip::read::ZipFile;
 
@@ -9,14 +10,15 @@ use crate::utils::xdelta3::*;
 #[derive(Deserialize, Default, Clone)]
 pub struct ModDependency {
     pub guid: String,
-    pub soft: bool
-    // TODO: Version requirement field (format the version number), soft has default of "false"
+    #[serde(default)]
+    pub soft: bool,
+    pub version: String
 }
 
 #[derive(Deserialize, Clone)]
 #[serde(untagged)]  // Lets serde know that this shouldn't look for one of the names here
 pub enum ModDependencyEnum {
-    ImplicitHard(String),   // This will format as GUID:version (need to choose a version standard)
+    ImplicitHard(String),   // This will format as GUID:version (use semver package)
     DependTable(ModDependency)
 }
 
@@ -39,6 +41,44 @@ impl PartialEq for ModMetaData {
 impl Eq for ModMetaData {}
 
 impl ModMetaData {
+    pub fn validate_semantics(&self) -> Result<(), String> {
+        if let Err(e) = semver::Version::parse(&self.version) {
+            return Err(format!("Version is not cargo-like semantic: {}", e.to_string()));
+        }
+
+        for d in self.depends.iter() {
+            let dep = match Self::get_dependency(d) {
+                Err(e) => {
+                    return if let ModDependencyEnum::ImplicitHard(s) = d {
+                        Err(format!("{} ({})", e, s))
+                    }
+                    else {
+                        Err(e)
+                    };
+                },
+                Ok(md) => md
+            };
+            if let Err(e) = VersionReq::parse(&dep.version) {
+                return Err(format!("Version of requirement {} is not cargo-like semantic: {}", dep.guid, e.to_string()));
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn get_dependency(dep: &ModDependencyEnum) -> Result<ModDependency, String> {
+        match dep {
+            ModDependencyEnum::ImplicitHard(s) => {
+                let (guid, version) = match s.split_once(':') {
+                    None => return Err("No colon found in hard dependency string".to_string()),
+                    Some((g, v)) => (g.to_string(), v.to_string())
+                };
+                Ok(ModDependency { guid, soft: false, version })
+            },
+            ModDependencyEnum::DependTable(dt) => Ok(dt.to_owned())
+        }
+    }
+
     pub fn has_dependencies(&self) -> bool {
         let deps = self.depends.clone();
         deps.len() > 0
@@ -47,28 +87,29 @@ impl ModMetaData {
     pub fn has_dependency(&self, mod_meta: &Self) -> bool {
         let deps = self.depends.clone();
         deps.iter().find(|d| {
-            let guid = match d {
-                ModDependencyEnum::ImplicitHard(guid) => guid,
-                ModDependencyEnum::DependTable(md) => &md.guid
-            };
-            *guid == mod_meta.guid
+            let dep = Self::get_dependency(d.to_owned()).unwrap();
+            mod_meta.matches_dependency(&dep)
         }).is_some()
+    }
+
+    pub fn matches_dependency(&self, dep: &ModDependency) -> bool {
+        let ver = semver::Version::parse(&self.version).unwrap();
+        let req = VersionReq::parse(&dep.version).unwrap();
+        dep.guid == self.guid && req.matches(&ver)
     }
 
     /// Will try and build a dependency tree. If a dependency is not satisfied, it will return an Err with the missing GUID.
     pub fn get_dependency_tree(&self, mod_metas: &Vec<Self>) -> Result<DependencyNode, String> {
         let guid = self.guid.clone();
+        let version = self.version.clone();
         if self.depends.is_empty() {
-            return Ok(DependencyNode { guid, deps: None });
+            return Ok(DependencyNode { guid, version, deps: None });
         }
         let mut deps = vec![];
-        for dep in self.depends.iter() {
-            let (guid, soft) = match dep {
-                ModDependencyEnum::ImplicitHard(g) => (g, false),
-                ModDependencyEnum::DependTable(d) => (&d.guid, d.soft)
-            };
-            match mod_metas.iter().find(|m| m.guid == *guid) {
-                None => if !soft { return Err(guid.clone()) },
+        for d in self.depends.iter() {
+            let dep = Self::get_dependency(d).unwrap();
+            match mod_metas.iter().find(|m| m.matches_dependency(&dep)) {
+                None => if !dep.soft { return Err(dep.guid.clone()) },
                 Some(mod_file) => {
                     match mod_file.get_dependency_tree(mod_metas) {
                         Err(g) => return Err(g),
@@ -77,13 +118,14 @@ impl ModMetaData {
                 }
             }
         }
-        Ok(DependencyNode { guid, deps: Some(deps) })
+        Ok(DependencyNode { guid, version, deps: Some(deps) })
     }
 }
 
 #[derive(Clone)]
 pub struct DependencyNode {
     pub guid: String,
+    pub version: String,
     pub deps: Option<Vec<DependencyNode>>
 }
 
@@ -118,22 +160,25 @@ impl ModFile {
 
     pub fn new(filepath: PathBuf) -> Result<Self, String> {
         let filepath_str = filepath.to_str().unwrap();
-        match open_archive(&filepath) {
-            Ok(mut archive) => {
-                match archive.by_name("mod.toml") {
-                    Err(_) => Err(format!("{} does not contain a mod.toml file", filepath_str)),
-                    Ok(mod_file) => {
-                        match Self::parse_mod_metadata(mod_file) {
-                            Ok(mut md) => {
-                                md.filepath = filepath;
-                                Ok(md)
-                            },
-                            Err(e_msg) => Err(format!("Failed to parse mod file in {}: {}", filepath_str, e_msg))
-                        }
-                    }
-                }
-            }
-            Err(e) => Err(e)
+        let mut archive = match open_archive(&filepath) {
+            Ok(a) => a,
+            Err(e) => return Err(e)
+        };
+        let mod_zip_file = match archive.by_name("mod.toml") {
+            Err(_) => return Err(format!("{} does not contain a mod.toml file", filepath_str)),
+            Ok(z) => z
+        };
+        let mod_file = match Self::parse_mod_metadata(mod_zip_file) {
+            Ok(mut md) => {
+                md.filepath = filepath;
+                md
+            },
+            Err(e_msg) => return Err(format!("Failed to parse mod file in {}: {}", filepath_str, e_msg))
+        };
+        
+        match mod_file.metadata.validate_semantics() {
+            Err(e) => Err(format!("{}'s semantics check failed: {}", mod_file.metadata.guid, e)),
+            Ok(_) => Ok(mod_file)
         }
     }
 
