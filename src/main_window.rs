@@ -4,7 +4,6 @@ use mod_data::*;
 
 mod config;
 use config::*;
-use semver::VersionReq;
 
 use crate::utils::{stream::*, xdelta3::XDelta3};
 
