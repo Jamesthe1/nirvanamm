@@ -293,12 +293,11 @@ impl MyWindow {
         AppConfig::new(cfg_path)
     }
 
-    fn get_all_mod_paths(appdata_dir: PathBuf) -> Vec<PathBuf> {
+    fn get_all_mod_paths(appdata_dir: PathBuf) -> Result<Vec<PathBuf>, String> {
         let mods_dir = appdata_dir.join(ModFile::SUBDIRECTORY);
         if !mods_dir.exists() {
-            match fs::create_dir(&mods_dir) {
-                Err(e) => panic!("Could not create mods directory in appdata: {}", e.to_string()),  // TODO: Make this return as Err instead of panicking, return type becomes Result
-                Ok(_) => ()
+            if let Err(e) =  fs::create_dir(&mods_dir) {
+                return Err(format!("Could not create mods directory in appdata: {}", e.to_string()));
             }
         }
 
@@ -320,7 +319,7 @@ impl MyWindow {
             }
         }
 
-        paths
+        Ok(paths)
     }
 
     fn fill_main_view(main_view: &gui::ListView<ModFile>, config: &AppConfig) {
@@ -329,7 +328,14 @@ impl MyWindow {
             items.delete_all();
         }
 
-        let filepaths = Self::get_all_mod_paths(Self::get_appdata_dir());
+        let filepaths = match Self::get_all_mod_paths(Self::get_appdata_dir()) {
+            Err(e) => {
+                log::error!("Could not get mod paths: {}", e);
+                return;
+            },
+            Ok(fs) => fs
+        };
+
         for filepath in filepaths.iter() {
             // Making a clone of the filepath so it can exist within ModData
             let mod_file = match ModFile::new(filepath.to_owned()) {
