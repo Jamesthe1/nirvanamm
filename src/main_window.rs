@@ -231,7 +231,7 @@ impl MyWindow {
                 button_style: BS::CENTER | BS::PUSHBUTTON,
                 ..Default::default()
             },
-            gui::ButtonOpts {   // TODO: Tooltip that says "Clears out all modded files and deletes the game backup, meant for updates or broken installations"
+            gui::ButtonOpts {   // Cannot create tooltip as there is no built-in one :(
                 text: "Reset Origin".to_string(),
                 position: (794, 638),
                 width: 200,
@@ -881,13 +881,14 @@ impl MyWindow {
         });
     }
 
-    fn set_window_ready (&self) {
+    fn set_window_ready(&self) {
         let self_clone = self.clone();
         self.wnd.on().wm_create(move |_| {
             let appcfg = Self::get_appcfg();
             let mods_view = self_clone.menus[0].mods_view.as_ref().unwrap();
             Self::fill_main_view(mods_view, &appcfg);
             self_clone.set_btn_icons(); // Button icons must be set after our window is initialized, because SendMessage relies on their HWND's being created (done in run_main).
+
             Ok(0)
         });
 
