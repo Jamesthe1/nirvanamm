@@ -1,4 +1,4 @@
-//#![windows_subsystem = "windows"]   // Flag to not make the console appear
+#![windows_subsystem = "windows"]   // Flag to not make the console appear
 
 mod utils;
 
