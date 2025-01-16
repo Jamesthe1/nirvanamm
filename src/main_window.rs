@@ -1,4 +1,5 @@
 mod mod_data;
+use log::{error, info, warn};
 use mod_data::*;
 
 mod config;
@@ -271,7 +272,7 @@ impl MyWindow {
         new_self
     }
 
-    fn get_appdata_dir() -> PathBuf {
+    pub fn get_appdata_dir() -> PathBuf {
         let pdirs = ProjectDirs::from(
             "",
             "Jamesthe1",
@@ -304,7 +305,7 @@ impl MyWindow {
         let mut paths: Vec<PathBuf> = vec![];
         for entry in fs::read_dir(mods_dir).unwrap() {
             if entry.is_err() {
-                eprintln!("A directory entry could not be read");
+                log::error!("A directory entry could not be read");
                 continue;
             }
             
@@ -333,7 +334,7 @@ impl MyWindow {
             // Making a clone of the filepath so it can exist within ModData
             let mod_file = match ModFile::new(filepath.to_owned()) {
                 Err(e_msg) => {
-                    eprintln!("{}", e_msg);
+                    log::error!("{}", e_msg);
                     continue;
                 },
                 Ok(mf) => mf
@@ -502,10 +503,15 @@ impl MyWindow {
         });
     }
 
-    fn show_popup(&self, text: String) {
-        // TODO: Copy errors to logger, in the functions where this is used to display them
+    fn show_popup(&self, text: String, level: log::Level) {
         self.popup.label.set_text(text.as_str());
         self.set_popup_state(true);
+        match level {
+            log::Level::Error => error!("{}", text),
+            log::Level::Warn => warn!("{}", text),
+            log::Level::Info => info!("{}", text),
+            _ => ()
+        }
     }
 
     fn show_popup_result<T, U, Ft, Fu>(&self, result: Result<T, U>, ok_text: Ft, err_text: Fu)
@@ -513,13 +519,14 @@ impl MyWindow {
             Ft: Fn(T) -> String,
             Fu: Fn(U) -> String
     {
-        self.show_popup(match result {
-            Err(e) => err_text(e),
-            Ok(o) => ok_text(o)
-        });
+        let (text, level) = match result {
+            Err(e) => (err_text(e), log::Level::Error),
+            Ok(o) => (ok_text(o), log::Level::Info),
+        };
+        self.show_popup(text, level);
     }
 
-    fn show_popup_option<T, Ft, F_>(&self, option: Option<T>, some_text: Ft, none_text: F_)
+    fn show_popup_option<T, Ft, F_>(&self, option: Option<T>, some_text: Ft, none_text: F_, level: log::Level)
         where
             Ft: Fn(T) -> String,
             F_: Fn() -> String
@@ -527,7 +534,7 @@ impl MyWindow {
         self.show_popup(match option {
             Some(t) => some_text(t),
             None => none_text()
-        });
+        }, level);
     }
 
     fn hide_popup(&self) {
@@ -563,21 +570,22 @@ impl MyWindow {
         if let Err((deps_unsatisfied, mods_blame)) = Self::validate_mod_selection(&active_mod_files) {
             let deps_str = deps_unsatisfied.join(", ");
             let blame_str = mods_blame.join(", ");
-            self.show_popup(format!("Missing dependencies: {}\nRequired by: {}", deps_str, blame_str));
+            self.show_popup(format!("Missing dependencies: {}\nRequired by: {}", deps_str, blame_str), log::Level::Error);
             return;
         }
 
         if let Err((guid, mod_conflicts, file_conflicts)) = Self::check_file_conflicts(&active_mod_files) {
             let files_str = file_conflicts.join(", ");
             let mods_str = mod_conflicts.join(", ");
-            self.show_popup(format!("Mod {} is incompatible with {}\nConflicting files: {}", guid, mods_str, files_str));
+            self.show_popup(format!("Mod {} is incompatible with {}\nConflicting files: {}", guid, mods_str, files_str), log::Level::Error);
             return;
         }
 
         if let Err((guid, e_msg)) = Self::apply_mod_files(&mut config, active_mod_files) {
             self.show_popup_option(guid,
                 |g| format!("Failed to apply mod {}\nReason: {}", g, e_msg),
-                || format!("Failed to apply mods: {}", e_msg)
+                || format!("Failed to apply mods: {}", e_msg),
+                log::Level::Error
             );
             return;
         }
@@ -595,11 +603,11 @@ impl MyWindow {
         let self_clone = self.clone();
         if !origin_path.exists() {
             self.set_popup_button_state(false);
-            self.show_popup("Preparing origin (this may take a while...)".to_string());
+            self.show_popup("Preparing origin (this may take a while...)".to_string(), log::Level::Info);
             // GDI can handle thread safety just fine actually, given it uses the message system with locks
             thread::spawn(move || {
                 if let Err(e) = self_clone.prepare_origin(origin_path, game_root_clone) {
-                    self_clone.show_popup(format!("Could not prepare origin: {}", e));
+                    self_clone.show_popup(format!("Could not prepare origin: {}", e), log::Level::Error);
                 }
                 else {
                     self_clone.use_selected_data_noprep(config);
@@ -790,16 +798,14 @@ impl MyWindow {
     fn set_btn_icons(&self) {
         let buttons = &self.menus[0].buttons;
         if let Err(e) = Self::set_icon(buttons[0].hwnd(), "res/refresh.ico") {
-            eprintln!("Couldn't set refresh icon: {}", e);
+            log::error!("Couldn't set refresh icon: {}", e);
         }
         if let Err(e) = Self::set_icon(buttons[2].hwnd(), "res/folder.ico") {
-            eprintln!("Couldn't set folder icon: {}", e);
+            log::error!("Couldn't set folder icon: {}", e);
         }
     }
 
     fn set_btn_events(&self) {
-        // TODO: Create a logger and clone it into various functions, if necessary
-        // It must be able to print to console and write to a file
         let buttons = &self.menus[0].buttons;
         let self_clone = self.clone();  // Shallow copy, retains the underlying pointer
         buttons[0].on().bn_clicked(move || {
