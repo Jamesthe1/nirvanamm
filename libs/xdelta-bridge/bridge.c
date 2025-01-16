@@ -11,5 +11,3 @@ int xd3_call(int argc, char** argv, xprintf_ptr msg_collector) {
     xprintf_message_func = NULL;
     return ret;
 }
-
-// TODO: Encode and decode functions
