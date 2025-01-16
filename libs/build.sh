@@ -21,6 +21,7 @@ case $1 in
     bridge)
         cd xdelta-bridge
         make
+        mv xdelta3_bridge.dll ../..
         cd -
         ;;
     *)
