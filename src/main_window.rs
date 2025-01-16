@@ -581,20 +581,27 @@ impl MyWindow {
             return;
         }
 
-        if let Err((guid, e_msg)) = Self::apply_mod_files(&mut config, active_mod_files) {
-            self.show_popup_option(guid,
-                |g| format!("Failed to apply mod {}\nReason: {}", g, e_msg),
-                || format!("Failed to apply mods: {}", e_msg),
-                log::Level::Error
-            );
-            return;
-        }
+        let self_clone = self.clone();
+        self.show_popup("Applying selected mods...".to_string(), log::Level::Info);
+        self.set_popup_button_state(false);
+        thread::spawn(move || {
+            if let Err((guid, e_msg)) = Self::apply_mod_files(&mut config, active_mod_files) {
+                self_clone.show_popup_option(guid,
+                    |g| format!("Failed to apply mod {}\nReason: {}", g, e_msg),
+                    || format!("Failed to apply mods: {}", e_msg),
+                    log::Level::Error
+                );
+                self_clone.set_popup_button_state(true);
+                return;
+            }
 
-        self.show_popup_result(
-            config.save(),
-            |_| "Patches succeeded".to_string(),
-            |e| format!("Patches succeeded\nError saving config: {}", e)
-        );
+            self_clone.show_popup_result(
+                config.save(),
+                |_| "Patches succeeded".to_string(),
+                |e| format!("Patches succeeded\nError saving config: {}", e)
+            );
+            self_clone.set_popup_button_state(true);
+        });
     }
 
     fn use_selected_data(&self, config: AppConfig) {
@@ -602,8 +609,8 @@ impl MyWindow {
         let game_root_clone = config.data_win.game_root.clone();
         let self_clone = self.clone();
         if !origin_path.exists() {
-            self.set_popup_button_state(false);
             self.show_popup("Preparing origin (this may take a while...)".to_string(), log::Level::Info);
+            self.set_popup_button_state(false);
             // GDI can handle thread safety just fine actually, given it uses the message system with locks
             thread::spawn(move || {
                 if let Err(e) = self_clone.prepare_origin(origin_path, game_root_clone) {
@@ -845,12 +852,18 @@ impl MyWindow {
 
         let self_clone = self.clone();
         buttons[1].on().bn_clicked(move || {
-            let mut appcfg = Self::get_appcfg();
-            self_clone.show_popup_result(
-                Self::purge_to_origin(&mut appcfg),
-                |_| "Reset successful".to_string(),
-                |e| format!("Failed to reset: {}", e)
-            );
+            let self_clone_inner = self_clone.clone();
+            self_clone.show_popup("Resetting the game to its original state...".to_string(), log::Level::Debug);
+            self_clone.set_popup_button_state(false);
+            thread::spawn(move || {
+                let mut appcfg = Self::get_appcfg();
+                self_clone_inner.show_popup_result(
+                    Self::purge_to_origin(&mut appcfg),
+                    |_| "Reset successful".to_string(),
+                    |e| format!("Failed to reset: {}", e)
+                );
+                self_clone_inner.set_popup_button_state(true);
+            });
             Ok(())
         });
 
