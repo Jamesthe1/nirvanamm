@@ -10,12 +10,13 @@ use crate::utils::xdelta3::*;
 pub struct ModDependency {
     pub guid: String,
     pub soft: bool
+    // TODO: Version requirement field (format the version number), soft has default of "false"
 }
 
 #[derive(Deserialize, Clone)]
 #[serde(untagged)]  // Lets serde know that this shouldn't look for one of the names here
 pub enum ModDependencyEnum {
-    ImplicitHard(String),
+    ImplicitHard(String),   // This will format as GUID:version (need to choose a version standard)
     DependTable(ModDependency)
 }
 
