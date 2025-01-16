@@ -577,7 +577,14 @@ impl MyWindow {
         if let Err((guid, mod_conflicts, file_conflicts)) = Self::check_file_conflicts(&active_mod_files) {
             let files_str = file_conflicts.join(", ");
             let mods_str = mod_conflicts.join(", ");
-            self.show_popup(format!("Mod {} is incompatible with {}\nConflicting files: {}", guid, mods_str, files_str), log::Level::Error);
+            let patch_name = "patch.xdelta".to_string();
+            let text = if file_conflicts.contains(&patch_name) {
+                "Incompatible patches".to_string()
+            }
+            else {
+                format!("Conflicting files: {}", files_str)
+            };
+            self.show_popup(format!("Mod {} is incompatible with {}\n{}", guid, mods_str, text), log::Level::Error);
             return;
         }
 
@@ -697,7 +704,7 @@ impl MyWindow {
             }
             
             for entry in mod_zip.file_names() {
-                if entry == "mod.toml" || entry == "patch.xdelta" {
+                if entry == "mod.toml" {
                     continue;
                 }
                 files.insert(entry.to_string(), mod_file);
