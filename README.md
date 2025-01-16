@@ -31,6 +31,7 @@ depends = [ # Optional
 - Emplace all the associated files with your mod in this zip
 
 ## Stretch goals (post-v1.0):
+- Modpacks
 - Manage palettes and palette packs
 - Display palettes on an example with an OpenGL shader
 - Manage music packs
