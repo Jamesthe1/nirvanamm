@@ -587,6 +587,11 @@ impl MyWindow {
             return;
         }
 
+        if let Err((guid, e_msg)) = Self::check_mod_security(&active_mod_files) {
+            self.show_popup(format!("Mod security failure: {}\nCaused by: {}", e_msg, guid), log::Level::Error);
+            return;
+        }
+
         if let Err((guid, mod_conflicts, file_conflicts)) = Self::check_file_conflicts(&active_mod_files) {
             let files_str = file_conflicts.join(", ");
             let mods_str = mod_conflicts.join(", ");
@@ -645,6 +650,27 @@ impl MyWindow {
         else {
             self.use_selected_data_noprep(config);
         }
+    }
+
+    fn check_mod_security(active_mod_files: &Vec<ModFile>) -> Result<(), (String, String)> {
+        for mod_file in active_mod_files.iter() {
+            let guid = mod_file.metadata.guid.clone();
+            let mod_zip = match open_archive(&mod_file.filepath) {
+                Err(_) => continue,
+                Ok(z) => z
+            };
+
+            for entry in mod_zip.file_names() {
+                if entry.ends_with(".exe") || entry.ends_with(".dll") {
+                    return Err((guid, format!("DISALLOWED FILE {}, REPORT IMMEDIATELY", entry)));
+                }
+
+                if entry == "data.win" {
+                    return Err((guid, "data.win is not allowed to be overridden".to_string()));
+                }
+            }
+        }
+        Ok(())
     }
 
     fn validate_mod_selection(active_mod_files: &Vec<ModFile>) -> Result<(), (Vec<String>, Vec<String>)> {
