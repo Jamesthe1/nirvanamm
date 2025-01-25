@@ -22,7 +22,7 @@ name = "Mod Name"
 guid = "mod.guid"
 version = "1.0.0"	# Must follow semantic versioning (https://semver.org)
 author = "Author or Team Name"
-depends = [ # Optional
+depends = [ # Optional, must be an array like so
 	"example.hard.dependency:>=0.5",
 	{guid = "example.hard.dependency.tabled", version="1.0"},
 	{guid = "example.soft.dependency", soft = true, version="<2.0.0"}
@@ -30,6 +30,7 @@ depends = [ # Optional
 ```
 - Create a .zip file
 - Emplace all the associated files with your mod in this zip
+	> NOTE: Files and folders are directly copied from the zip to the game's directory. So if there's a file at `musicpacks/my_pack/song.mp3`, it will appear the same way in the game folder.
 
 ## Stretch goals (post-v1.0):
 - Profiles
