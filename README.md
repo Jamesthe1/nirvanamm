@@ -34,6 +34,7 @@ depends = [ # Optional
 ## Stretch goals (post-v1.0):
 - Profiles
 - Modpacks
+- Mod packaging/creation page
 - Manage palettes and palette packs
 - Display palettes on an example with an OpenGL shader
 - Manage music packs
