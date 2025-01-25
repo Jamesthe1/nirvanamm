@@ -13,7 +13,7 @@ use zip::{write::SimpleFileOptions, ZipWriter};
 mod asref_winctrl;
 use asref_winctrl::*;
 
-use std::{borrow::Borrow, cell::RefCell, collections::{HashMap, HashSet}, fs, io::{Read, Write}, path::PathBuf, process::Command, thread};
+use std::{borrow::Borrow, cell::RefCell, collections::{HashMap, HashSet}, fs, io::{Read, Write}, ops::Index, path::PathBuf, process::Command, thread};
 
 // Prelude automatically imports necessary traits
 use winsafe::{co::{BS, LR, SS, SW, WS, WS_EX}, gui::{self, Icon}, msg::bm::SetImage, prelude::*, BmpIcon, WString, HICON, HINSTANCE, HWND, SIZE};
@@ -70,6 +70,20 @@ impl PopupWindow {
         let label = gui::Label::new(&control, label_opts);
         let buttons: Vec<gui::Button> = button_opts.into_iter().map(|o| gui::Button::new(&control, o)).collect();
         Self { control, label, buttons }
+    }
+}
+
+enum MenuType {
+    ModMenu,
+    OptionsMenu
+}
+
+// Allows for our enum to specifically be used on the WindowMenu vector
+impl Index<MenuType> for Vec<WindowMenu> {
+    type Output = WindowMenu;
+    
+    fn index(&self, index: MenuType) -> &Self::Output {
+        &self[index as usize]
     }
 }
 
@@ -556,7 +570,7 @@ impl MyWindow {
             active_mods.clear();
         }
 
-        let mods_view = self.menus[0].mods_view.as_ref();
+        let mods_view = self.menus[MenuType::ModMenu].mods_view.as_ref();
         for it in mods_view.unwrap().items().iter_selected() {
             if let Some(rc_mf) = it.data() {
                 let ref_mod_file: &RefCell<ModFile> = rc_mf.borrow();
@@ -801,7 +815,7 @@ impl MyWindow {
     }
 
     fn set_btn_icons(&self) {
-        let buttons = &self.menus[0].buttons;
+        let buttons = &self.menus[MenuType::ModMenu].buttons;
         if let Err(e) = Self::set_icon(buttons[0].hwnd(), "res/refresh.ico") {
             log::error!("Couldn't set refresh icon: {}", e);
         }
@@ -811,11 +825,11 @@ impl MyWindow {
     }
 
     fn set_btn_events(&self) {
-        let buttons = &self.menus[0].buttons;
+        let buttons = &self.menus[MenuType::ModMenu].buttons;
         let self_clone = self.clone();  // Shallow copy, retains the underlying pointer
         buttons[0].on().bn_clicked(move || {
             let appcfg = Self::get_appcfg();    // New app config is loaded each time this button is clicked, just to freshen data
-            let mods_view = self_clone.menus[0].mods_view.as_ref().unwrap();
+            let mods_view = self_clone.menus[MenuType::ModMenu].mods_view.as_ref().unwrap();
             Self::fill_main_view(mods_view, &appcfg);
             Ok(())
         });
@@ -834,11 +848,11 @@ impl MyWindow {
             Ok(())
         });
 
-        let buttons = &self.menus[1].buttons;
+        let buttons = &self.menus[MenuType::OptionsMenu].buttons;
         let self_clone = self.clone();
         buttons[0].on().bn_clicked(move || {
             let mut appcfg = Self::get_appcfg();
-            let path = PathBuf::from(self_clone.menus[1].edits[0].text());
+            let path = PathBuf::from(self_clone.menus[MenuType::OptionsMenu].edits[0].text());
             appcfg.data_win.game_root = path;
             self_clone.show_popup_result(
                 appcfg.save(),
@@ -877,7 +891,7 @@ impl MyWindow {
         let self_clone = self.clone();
         self.wnd.on().wm_create(move |_| {
             let appcfg = Self::get_appcfg();
-            let mods_view = self_clone.menus[0].mods_view.as_ref().unwrap();
+            let mods_view = self_clone.menus[MenuType::ModMenu].mods_view.as_ref().unwrap();
             Self::fill_main_view(mods_view, &appcfg);
             self_clone.set_btn_icons(); // Button icons must be set after our window is initialized, because SendMessage relies on their HWND's being created (done in run_main).
 
@@ -891,7 +905,7 @@ impl MyWindow {
             }
 
             let appcfg = Self::get_appcfg();
-            let menu = self_clone.menus.get(1).unwrap();
+            let menu = self_clone.menus.get(MenuType::OptionsMenu as usize).unwrap();
             Self::fill_options_menu(menu, &appcfg);
             Ok(())
         });
