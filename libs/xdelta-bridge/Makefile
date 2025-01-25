@@ -1,5 +1,5 @@
 LDFLAGS := -L../..
-LIBS := -lxdelta3
+LIBS := -lxdelta3 -static-libstdc++
 CC := gcc
 
 all: bridge.c
