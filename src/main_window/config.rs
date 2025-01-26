@@ -77,6 +77,7 @@ impl AppConfig {
 
 #[derive(Serialize, Deserialize, Clone, Default)]
 pub struct DirsConfig {
+    #[serde(default)]   // In future versions of the config, this may be optional
     pub appdata: PathBuf
 }
 

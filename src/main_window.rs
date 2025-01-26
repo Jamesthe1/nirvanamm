@@ -286,24 +286,32 @@ impl MyWindow {
         new_self
     }
 
+    fn get_appdata_dir_default() -> PathBuf {
+        match get_appdata_dir(Self::APPNAME) {
+            Err(e_msg) => panic!("Failed to get appdata directory: {}", e_msg),
+            Ok(dir) => dir
+        }
+    }
+
     pub fn get_appdata_dir() -> PathBuf {
         if DirsConfig::cfg_exists() {
             match DirsConfig::get_appdata_dir_cfg(Self::APPNAME) {
                 Err(e_msg) => {
                     log::error!("Failed to get app config: {}", e_msg);
-                    match get_appdata_dir(Self::APPNAME) {
-                        Err(e_msg) => panic!("Failed to get appdata directory: {}", e_msg),
-                        Ok(dir) => dir
-                    }
+                    Self::get_appdata_dir_default() // Using this after instead of storing in a variable, because this will need to be dealt with after we run into config issues
                 },
-                Ok(dir) => dir
+                Ok(dir) => {
+                    if dir == PathBuf::from("") {
+                        Self::get_appdata_dir_default()
+                    }
+                    else {
+                        dir
+                    }
+                }
             }
         }
         else {
-            match get_appdata_dir(Self::APPNAME) {
-                Err(e_msg) => panic!("Failed to get appdata directory: {}", e_msg),
-                Ok(dir) => dir
-            }
+            Self::get_appdata_dir_default()
         }
     }
 
