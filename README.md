@@ -7,6 +7,10 @@
 
 ## How to use
 - Extract the built software to any folder (liblzma.dll and libxdelta3.dll must be next to the exe)
+	> NOTE: If you wish to change where the app data is located, create a file named `dirs.toml` like so:
+	> ```toml
+	> appdata = 'C:\Path\To\AppData\Dir'
+	> ```
 - Run it and go to options, where you can set where the game is installed (be sure to press "Save")
 - Add any mods into the mods folder (can be found with the "Mods" button), and click "Refresh"
 - Select a mod, then click "Patch" (this will take a while the first time, make sure your data.win hasn't been modified!)
