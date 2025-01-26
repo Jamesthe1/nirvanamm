@@ -216,20 +216,24 @@ impl ModFile {
                 let _ = fs::create_dir_all(dir);
             }
 
-            let mut out_file = match fs::File::create(&path) {
-                Err(e) => return Err((guid, format!("Extract output error: {}", e.to_string()))),
-                Ok(f) => f
-            };
             match archive.by_name(entry.as_str()) {
                 Err(e) => return Err((guid, format!("Failed to read zip content: {}", e.to_string()))),
                 Ok(mut zip_file) => {
+                    if zip_file.is_dir() {
+                        let _ = fs::create_dir(path);
+                        continue;
+                    }
+
+                    let mut out_file = match fs::File::create(&path) {
+                        Err(e) => return Err((guid, format!("Extract output error: {}", e.to_string()))),
+                        Ok(f) => f
+                    };
                     // Better to stream with a buffer than to store the entire file in RAM
                     if let Err(e) = stream_from_to::<32768>(|buf| zip_file.read(buf), |buf| out_file.write_all(buf)) {
                         return Err((guid, format!("Failed to extract file {}: {}", entry, e)));
                     }
                 }
             }
-            drop(out_file);  // Drop must happen here or else xdelta will complain the file is still open
 
             if is_patch {
                 let data_out = game_root.join(&data_win);
