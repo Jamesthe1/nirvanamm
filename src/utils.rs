@@ -2,3 +2,4 @@
 
 pub mod stream;
 pub mod xdelta3;
+pub mod files;

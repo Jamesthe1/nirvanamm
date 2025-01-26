@@ -5,7 +5,7 @@ use mod_data::*;
 mod config;
 use config::*;
 
-use crate::utils::{stream::*, xdelta3::XDelta3};
+use crate::utils::{files::get_appdata_dir, stream::*, xdelta3::XDelta3};
 
 use walkdir::WalkDir;
 use zip::{write::SimpleFileOptions, ZipWriter};
@@ -17,7 +17,7 @@ use std::{borrow::Borrow, cell::RefCell, collections::{HashMap, HashSet}, fs, io
 
 // Prelude automatically imports necessary traits
 use winsafe::{co::{BS, LR, SS, SW, WS, WS_EX}, gui::{self, Icon}, msg::bm::SetImage, prelude::*, BmpIcon, WString, HICON, HINSTANCE, HWND, SIZE};
-use directories::{BaseDirs, ProjectDirs};
+use directories::BaseDirs;
 
 #[derive(Clone)]
 struct WindowMenu {
@@ -287,19 +287,24 @@ impl MyWindow {
     }
 
     pub fn get_appdata_dir() -> PathBuf {
-        let pdirs = ProjectDirs::from(
-            "",
-            "Jamesthe1",
-            Self::APPNAME
-        ).unwrap();
-
-        let appdata_dir = pdirs.data_dir();
-        if !appdata_dir.exists() {
-            if let Err(e) = fs::create_dir_all(appdata_dir) {
-                panic!("Could not create appdata directory: {}", e.to_string());
+        if DirsConfig::cfg_exists() {
+            match DirsConfig::get_appdata_dir_cfg(Self::APPNAME) {
+                Err(e_msg) => {
+                    log::error!("Failed to get app config: {}", e_msg);
+                    match get_appdata_dir(Self::APPNAME) {
+                        Err(e_msg) => panic!("Failed to get appdata directory: {}", e_msg),
+                        Ok(dir) => dir
+                    }
+                },
+                Ok(dir) => dir
             }
         }
-        appdata_dir.to_path_buf()
+        else {
+            match get_appdata_dir(Self::APPNAME) {
+                Err(e_msg) => panic!("Failed to get appdata directory: {}", e_msg),
+                Ok(dir) => dir
+            }
+        }
     }
 
     fn get_appcfg() -> AppConfig {

@@ -2,6 +2,8 @@ use std::{fs, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
 
+use crate::utils::files::get_appdata_dir;
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct DataWinConfig {
     pub game_root: PathBuf,
@@ -32,7 +34,7 @@ impl AppConfig {
             Self::load(cfg_path)
         }
         else {
-            let mut config = AppConfig { ..Default::default() };
+            let mut config = Self { ..Default::default() };
             config.filepath = cfg_path;
             let _ = config.save();
             config
@@ -40,14 +42,14 @@ impl AppConfig {
     }
 
     pub fn load(cfg_path: PathBuf) -> Self {
-        let cfg_default = AppConfig { ..Default::default() };
+        let cfg_default = Self { ..Default::default() };
         let mut app_cfg = match fs::read_to_string(&cfg_path) {
             Err(e) => {
                 eprintln!("File read error: {}", e.to_string());
                 cfg_default
             },
             Ok(c) => {
-                match toml::from_str::<AppConfig>(&c) {
+                match toml::from_str::<Self>(&c) {
                     Err(e) => {
                         eprintln!("Parse error: {}", e.to_string());
                         cfg_default
@@ -69,6 +71,58 @@ impl AppConfig {
                     Ok(_) => Ok(())
                 }
             }
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone, Default)]
+pub struct DirsConfig {
+    pub appdata: PathBuf
+}
+
+impl DirsConfig {
+    pub const FILENAME: &str = "dirs.toml";
+
+    pub fn cfg_exists() -> bool {
+        let cfg_path = PathBuf::from(Self::FILENAME);
+        cfg_path.exists()
+    }
+
+    pub fn open(appname: &str) -> Result<Self, String> {
+        if Self::cfg_exists() {
+            Self::load()
+        }
+        else {
+            let appdata = match get_appdata_dir(appname) {
+                Err(e_msg) => return Err(e_msg),
+                Ok(a) => a
+            };
+            Ok(Self { appdata })
+        }
+    }
+
+    pub fn load() -> Result<Self, String> {
+        match fs::read_to_string(PathBuf::from(Self::FILENAME)) {
+            Err(e) => {
+                Err(format!("File read error: {}", e.to_string()))
+            },
+            Ok(c) => {
+                match toml::from_str::<Self>(&c) {
+                    Err(e) => {
+                        Err(format!("Parse error: {}", e.to_string()))
+                    },
+                    Ok(ac) => Ok(ac)
+                }
+            }
+        }
+    }
+
+    pub fn get_appdata_dir_cfg(appname: &str) -> Result<PathBuf, String> {
+        match Self::open(appname) {
+            Err(e_msg) => {
+                Err(format!("Could not open dir config: {}", e_msg))
+            },
+            Ok(dc) => Ok(dc.appdata)
         }
     }
 }
