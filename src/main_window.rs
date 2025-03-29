@@ -593,6 +593,7 @@ impl MyWindow {
             };
         }
 
+        // TODO: Merge all checks into one function, create new discriminated union
         if let Err((deps_unsatisfied, mods_blame)) = Self::validate_mod_selection(&active_mod_files) {
             let deps_str = deps_unsatisfied.join(", ");
             let blame_str = mods_blame.join(", ");
@@ -617,6 +618,12 @@ impl MyWindow {
             };
             self.show_popup(format!("Mod {} is incompatible with {}\n{}", guid, mods_str, text), log::Level::Error);
             return;
+        }
+
+        // TODO: Maybe warn and give the user the option to continue?
+        if let Err((guid, bad_patches)) = Self::check_invalid_patches(&active_mod_files) {
+            let files_str = bad_patches.join(", ");
+            self.show_popup(format!("Mod {} has patches not named patch.xdelta\n{}", guid, files_str), log::Level::Error);
         }
 
         let self_clone = self.clone();
@@ -760,6 +767,22 @@ impl MyWindow {
                     continue;
                 }
                 files.insert(entry.to_string(), mod_file);
+            }
+        }
+        Ok(())
+    }
+
+    fn check_invalid_patches(active_mod_files: &Vec<ModFile>) -> Result<(), (String, Vec<String>)> {
+        for mod_file in active_mod_files.iter() {
+            let guid = &mod_file.metadata.guid;
+            let mod_zip = match open_archive(&mod_file.filepath) {
+                Err(_) => continue,
+                Ok(z) => z
+            };
+
+            let bad_patches: Vec<String> = mod_zip.file_names().map(String::from).filter(|f| f.ends_with(".xdelta") && f != "patch.xdelta").collect();
+            if bad_patches.len() > 0 {
+                return Err((guid.clone(), bad_patches));
             }
         }
         Ok(())
