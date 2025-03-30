@@ -15,6 +15,7 @@ use asref_winctrl::*;
 
 mod mod_validation;
 use mod_validation::*;
+use mod_validation::ModCheckResult::*;
 
 use std::{borrow::Borrow, cell::RefCell, fs, io::{Read, Write}, ops::Index, path::PathBuf, process::Command, thread};
 
@@ -596,37 +597,37 @@ impl MyWindow {
             };
         }
 
-        // TODO: Merge all checks into one function, create new discriminated union
-        if let Err((deps_unsatisfied, mods_blame)) = validate_mod_selection(&active_mod_files) {
-            let deps_str = deps_unsatisfied.join(", ");
-            let blame_str = mods_blame.join(", ");
-            self.show_popup(format!("Missing dependencies: {}\nRequired by: {}", deps_str, blame_str), log::Level::Error);
-            return;
-        }
-
-        if let Err((guid, e_msg)) = check_mod_security(&active_mod_files) {
-            self.show_popup(format!("Mod security failure: {}\nCaused by: {}", e_msg, guid), log::Level::Error);
-            return;
-        }
-
-        if let Err((guid, mod_conflicts, file_conflicts)) = check_file_conflicts(&active_mod_files) {
-            let files_str = file_conflicts.join(", ");
-            let mods_str = mod_conflicts.join(", ");
-            let patch_name = "patch.xdelta".to_string();
-            let text = if file_conflicts.contains(&patch_name) {
-                "Incompatible patches".to_string()
+        match validate_active_mods(&active_mod_files) {
+            ModsOk() => (),
+            ModInsecurity(guid, e_msg) => {
+                self.show_popup(format!("Mod security failure: {}\nCaused by: {}", e_msg, guid), log::Level::Error);
+                return;
+            },
+            FailedDependency(deps, mods_blame) => {
+                let deps_str = deps.join(", ");
+                let blame_str = mods_blame.join(", ");
+                self.show_popup(format!("Missing dependencies: {}\nRequired by: {}", deps_str, blame_str), log::Level::Error);
+                return;
+            },
+            FileConflict(guid, mod_conflicts, file_conflicts) => {
+                let files_str = file_conflicts.join(", ");
+                let mods_str = mod_conflicts.join(", ");
+                let patch_name = "patch.xdelta".to_string();
+                let text = if file_conflicts.contains(&patch_name) {
+                    "Incompatible patches".to_string()
+                }
+                else {
+                    format!("Conflicting files: {}", files_str)
+                };
+                self.show_popup(format!("Mod {} is incompatible with {}\n{}", guid, mods_str, text), log::Level::Error);
+                return;
+            },
+            // TODO: Maybe warn and give the user the option to continue?
+            InvalidPatchNames(guid, bad_patches) => {
+                let files_str = bad_patches.join(", ");
+                self.show_popup(format!("Mod {} has patches not named patch.xdelta\n{}", guid, files_str), log::Level::Error);
+                return;
             }
-            else {
-                format!("Conflicting files: {}", files_str)
-            };
-            self.show_popup(format!("Mod {} is incompatible with {}\n{}", guid, mods_str, text), log::Level::Error);
-            return;
-        }
-
-        // TODO: Maybe warn and give the user the option to continue?
-        if let Err((guid, bad_patches)) = check_invalid_patches(&active_mod_files) {
-            let files_str = bad_patches.join(", ");
-            self.show_popup(format!("Mod {} has patches not named patch.xdelta\n{}", guid, files_str), log::Level::Error);
         }
 
         let self_clone = self.clone();
