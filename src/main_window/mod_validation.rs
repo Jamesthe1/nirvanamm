@@ -1,7 +1,7 @@
 use super::mod_data::*;
 use crate::utils::stream::*;
 
-use std::collections::{HashMap, HashSet};
+use std::{collections::{HashMap, HashSet}, fs::File};
 
 pub enum ModCheckResult {
     ModsOk(),
@@ -11,6 +11,7 @@ pub enum ModCheckResult {
     InvalidPatchNames(String, Vec<String>)
 }
 
+use zip::ZipArchive;
 use ModCheckResult::*;
 
 pub fn validate_active_mods(active_mod_files: &Vec<ModFile>) -> ModCheckResult {
@@ -26,72 +27,27 @@ pub fn validate_active_mods(active_mod_files: &Vec<ModFile>) -> ModCheckResult {
             Ok(z) => z
         };
 
-        // Security checks
-        for entry in mod_zip.file_names() {
-            if entry.ends_with(".exe") || entry.ends_with(".dll") {
-                return ModInsecurity(guid, format!("DISALLOWED FILE {}, REPORT IMMEDIATELY", entry));
-            }
-
-            if entry == "data.win" {
-                return ModInsecurity(guid, "data.win is not allowed to be overridden".to_string());
-            }
+        if let Err(e_msg) = check_mod_security(&mod_zip) {
+            return ModInsecurity(guid, e_msg);
         }
 
-        // Dependency checks
-        let mut failed = false;
-        for dep in mod_file.metadata.depends.iter().map(|d| ModMetaData::get_dependency(d).unwrap()) {
-            if dep.soft {
-                continue;
-            }
-            if active_mod_files.iter().position(|md| md.metadata.matches_dependency(&dep)).is_none() {
-                deps_unsatisfied.push(format!("{} {}", dep.guid, dep.version));
-                failed = true;  // Don't care about this being set multiple times, if it's set once it will always be this state
-            }
-        }
-        if failed {
-            mods_blame.push(mod_file.metadata.guid.clone());
-        }
-
-        // Conflict checks
-        let mut conflicts: Vec<String> = mod_zip.file_names().map(String::from).filter(|e| checked_files.contains_key(e)).collect();
-        let mut resolved_conflicts: Vec<String> = vec![];
-        let mut resolved_mods: Vec<&&ModFile> = vec![];
-        for conflict_file in conflicts.iter() {
-            let mod_conflict = checked_files.get(conflict_file).unwrap();
-            // We can save computation time by checking if the mod was already found in the tree
-            if resolved_mods.contains(&mod_conflict) {
-                resolved_conflicts.push(conflict_file.clone());
-            }
-
-            let mod_deps = mod_file.get_dependency_tree(active_mod_files).unwrap();
-            let conflict_deps = mod_conflict.get_dependency_tree(active_mod_files).unwrap();
-            if mod_deps.in_dependency_tree(&mod_conflict.metadata.guid) || conflict_deps.in_dependency_tree(&guid) {
-                resolved_conflicts.push(conflict_file.clone());
-                resolved_mods.push(mod_conflict);
-            }
-        }
-        for resolved in resolved_conflicts {
-            let pos = conflicts.iter().position(|s| *s == resolved).unwrap();
-            conflicts.remove(pos);
-        }
-
-        if conflicts.len() > 0 {
-            // Hash sets always have unique data, so no duplicates here
-            let conflict_mods: HashSet<String> = conflicts.iter().map(|f| checked_files.get(f).unwrap().metadata.guid.clone()).collect();
-            return FileConflict(guid.clone(), conflict_mods.into_iter().collect(), conflicts);
-        }
-        
-        for entry in mod_zip.file_names() {
-            if entry == "mod.toml" {
-                continue;
-            }
-            checked_files.insert(entry.to_string(), mod_file);
-        }
-
-        // Patch name checks
-        let bad_patches: Vec<String> = mod_zip.file_names().map(String::from).filter(|f| f.ends_with(".xdelta") && f != "patch.xdelta").collect();
-        if bad_patches.len() > 0 {
+        if let Err(bad_patches) = check_patch_validity(&mod_zip) {
             return InvalidPatchNames(guid.clone(), bad_patches);
+        }
+
+        if let Err(mut bad_deps) = check_mod_dependencies(active_mod_files, &mod_file.metadata.depends) {
+            deps_unsatisfied.append(&mut bad_deps);
+            mods_blame.push(guid);
+            continue;
+        }
+
+        match check_mod_conflicts(&mut checked_files, active_mod_files, mod_file, &mod_zip) {
+            Err((conflict_mods, conflict_files)) => return FileConflict(guid, conflict_mods, conflict_files),
+            Ok(valid_files) => {
+                for file in valid_files {
+                    checked_files.insert(file, &mod_file);
+                }
+            }
         }
     }
     
@@ -100,5 +56,81 @@ pub fn validate_active_mods(active_mod_files: &Vec<ModFile>) -> ModCheckResult {
     }
     else {
         ModsOk()
+    }
+}
+
+fn check_mod_security(mod_zip: &ZipArchive<File>) -> Result<(), String> {
+    for entry in mod_zip.file_names() {
+        if entry.ends_with(".exe") || entry.ends_with(".dll") {
+            return Err(format!("DISALLOWED FILE {}, REPORT IMMEDIATELY", entry));
+        }
+
+        if entry == "data.win" {
+            return Err("data.win is not allowed to be overridden".to_string());
+        }
+    }
+    Ok(())
+}
+
+fn check_mod_dependencies(active_mod_files: &Vec<ModFile>, mod_depends: &Vec<ModDependencyEnum>) -> Result<(), Vec<String>> {
+    let mut deps_unsatisfied: Vec<String> = vec![];
+
+    for dep in mod_depends.iter().map(|d| ModMetaData::get_dependency(d).unwrap()) {
+        if dep.soft {
+            continue;
+        }
+        if active_mod_files.iter().position(|md| md.metadata.matches_dependency(&dep)).is_none() {
+            deps_unsatisfied.push(format!("{} {}", dep.guid, dep.version));
+        }
+    }
+
+    if deps_unsatisfied.len() > 0 {
+        Err(deps_unsatisfied)
+    }
+    else {
+        Ok(())
+    }
+}
+
+fn check_mod_conflicts(checked_files: &mut HashMap<String, &ModFile>, active_mod_files: &Vec<ModFile>, mod_file: &ModFile, mod_zip: &ZipArchive<File>) -> Result<Vec<String>, (Vec<String>, Vec<String>)> {
+    let mut conflicts: Vec<String> = mod_zip.file_names().map(String::from).filter(|e| checked_files.contains_key(e)).collect();
+    let mut resolved_conflicts: Vec<String> = vec![];
+    let mut resolved_mods: Vec<&&ModFile> = vec![];
+    for conflict_file in conflicts.iter() {
+        let mod_conflict = checked_files.get(conflict_file).unwrap();
+        // We can save computation time by checking if the mod was already found in the tree
+        if resolved_mods.contains(&mod_conflict) {
+            resolved_conflicts.push(conflict_file.clone());
+        }
+
+        let mod_deps = mod_file.get_dependency_tree(active_mod_files).unwrap();
+        let conflict_deps = mod_conflict.get_dependency_tree(active_mod_files).unwrap();
+        if mod_deps.in_dependency_tree(&mod_conflict.metadata.guid) || conflict_deps.in_dependency_tree(&mod_file.metadata.guid) {
+            resolved_conflicts.push(conflict_file.clone());
+            resolved_mods.push(mod_conflict);
+        }
+    }
+    for resolved in resolved_conflicts {
+        let pos = conflicts.iter().position(|s| *s == resolved).unwrap();
+        conflicts.remove(pos);
+    }
+
+    if conflicts.len() > 0 {
+        // Hash sets always have unique data, so no duplicates here
+        let conflict_mods: HashSet<String> = conflicts.iter().map(|f| checked_files.get(f).unwrap().metadata.guid.clone()).collect();
+        Err((conflict_mods.into_iter().collect(), conflicts))
+    }
+    else {
+        Ok(mod_zip.file_names().map(String::from).filter(|e| e != "mod.toml").collect())
+    }
+}
+
+fn check_patch_validity(mod_zip: &ZipArchive<File>) -> Result<(), Vec<String>> {
+    let bad_patches: Vec<String> = mod_zip.file_names().map(String::from).filter(|f| f.ends_with(".xdelta") && f != "patch.xdelta").collect();
+    if bad_patches.len() > 0 {
+        Err(bad_patches)
+    }
+    else {
+        Ok(())
     }
 }
