@@ -1,4 +1,5 @@
 # NirvanaMM: A ZeroRanger Mod Manager
+[Support me on Ko-Fi!](https://ko-fi.com/james_aka_david)
 - Takes .zip files containing metadata and subsequent files, and extracts them
 - Keeps a copy of the original game files, as well as any mods, in an app data directory (%appdata%\Jamesthe1\NirvanaMM\data)
 - Tracks the mods last used
